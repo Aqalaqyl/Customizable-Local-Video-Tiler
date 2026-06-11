@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; media-src 'self' file:; img-src 'self' data:; connect-src 'self';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Customizable Local Video Tiler</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-toolbar">
+      <div>
+        <h1>Local Video Tiler</h1>
+        <p id="workspacePath" class="workspace-path">Loading workspace...</p>
+      </div>
+      <div class="toolbar-actions">
+        <button id="chooseWorkspaceButton" type="button">Choose workspace</button>
+        <button id="editModeButton" class="primary" type="button" aria-pressed="false">Enter edit mode</button>
+      </div>
+    </header>
+
+    <section id="editHelp" class="edit-help" hidden>
+      <strong>Edit mode:</strong> hover over any tile to preview the split. Click for a vertical left/right split.
+      Hold <kbd>Shift</kbd> and click for a horizontal top/bottom split. Drag dividers to resize tiles.
+    </section>
+
+    <main id="tileCanvas" class="tile-canvas" aria-live="polite"></main>
+
+    <footer class="status-bar">
+      <span id="statusText">Ready.</span>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
