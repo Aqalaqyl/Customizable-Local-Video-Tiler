@@ -8,6 +8,8 @@ play, pause, restart, sync, and mute every video at once.
 Everything runs **entirely in your browser**. Your video files are never
 uploaded anywhere — they are read directly from disk using object URLs.
 
+![Customizable Local Video Tiler showing four videos in a 2x2 grid](docs/screenshot.webp)
+
 ## Features
 
 - Load multiple local videos at once (file picker or drag & drop).
