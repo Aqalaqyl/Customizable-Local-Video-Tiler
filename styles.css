@@ -214,6 +214,7 @@ button {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, 1fr);
+  align-content: start;
   background: var(--grid-bg);
   border-radius: var(--radius);
   padding: 8px;
@@ -256,6 +257,8 @@ button {
   overflow: hidden;
   border: 1px solid var(--border);
   aspect-ratio: 16 / 9;
+  min-width: 0;
+  align-self: start;
 }
 
 .tile video {
@@ -263,6 +266,9 @@ button {
   height: 100%;
   display: block;
   background: #000;
+  /* Default keeps aspect ratio so a video is never distorted even if the
+     fit-* class is somehow absent; fit-contain/fit-cover override below. */
+  object-fit: contain;
 }
 
 .tile.fit-contain video {
