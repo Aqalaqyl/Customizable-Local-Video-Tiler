@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customizable Local Video Tiler</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b0e14'/%3E%3Cg fill='%235b8cff'%3E%3Crect x='2' y='2' width='5' height='5' rx='1'/%3E%3Crect x='9' y='2' width='5' height='5' rx='1'/%3E%3Crect x='2' y='9' width='5' height='5' rx='1'/%3E%3Crect x='9' y='9' width='5' height='5' rx='1'/%3E%3C/g%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">▦</span>
+      <h1>Local Video Tiler</h1>
+    </div>
+    <p class="tagline">Arrange and play your local videos in a customizable grid &mdash; everything stays on your machine.</p>
+  </header>
+
+  <main class="layout">
+    <!-- Control panel -->
+    <aside class="panel" aria-label="Controls">
+      <section class="panel-section">
+        <h2>1. Add videos</h2>
+        <label class="file-button" for="file-input">
+          <span>Choose video files</span>
+          <input id="file-input" type="file" accept="video/*" multiple hidden />
+        </label>
+        <p class="hint">or drag &amp; drop video files onto the grid.</p>
+        <button id="clear-all" class="ghost-button" type="button">Remove all videos</button>
+        <p id="video-count" class="count">No videos loaded</p>
+      </section>
+
+      <section class="panel-section">
+        <h2>2. Layout</h2>
+        <label class="field">
+          <span>Columns</span>
+          <select id="columns">
+            <option value="auto">Auto</option>
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Gap: <output id="gap-output">8</output>px</span>
+          <input id="gap" type="range" min="0" max="40" value="8" />
+        </label>
+
+        <label class="field">
+          <span>Fit</span>
+          <select id="fit">
+            <option value="contain" selected>Contain (show whole video)</option>
+            <option value="cover">Cover (fill &amp; crop)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Background</span>
+          <input id="bg-color" type="color" value="#0b0e14" />
+        </label>
+
+        <label class="checkbox">
+          <input id="show-names" type="checkbox" checked />
+          <span>Show file names</span>
+        </label>
+      </section>
+
+      <section class="panel-section">
+        <h2>3. Playback</h2>
+        <div class="button-grid">
+          <button id="play-all" type="button">▶ Play all</button>
+          <button id="pause-all" type="button">❚❚ Pause all</button>
+          <button id="restart-all" type="button">↺ Restart all</button>
+          <button id="sync-all" type="button">⇆ Sync time</button>
+          <button id="mute-all" type="button">🔇 Mute all</button>
+          <button id="unmute-all" type="button">🔊 Unmute all</button>
+        </div>
+        <label class="checkbox">
+          <input id="loop-all" type="checkbox" checked />
+          <span>Loop videos</span>
+        </label>
+      </section>
+    </aside>
+
+    <!-- Video grid -->
+    <section class="stage" aria-label="Video grid">
+      <div id="grid" class="grid" tabindex="0">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon" aria-hidden="true">▦</div>
+          <h2>Your grid is empty</h2>
+          <p>Click <strong>Choose video files</strong> or drag videos here to start tiling.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
