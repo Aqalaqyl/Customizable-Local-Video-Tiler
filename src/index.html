@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local Video Tiler</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="toolbar">
+        <div class="toolbar-group">
+          <button id="pick-library-button" type="button">Select Video Library</button>
+          <span id="library-path" class="path-label">No library selected</span>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="pick-tiles-root-button" type="button">Select Tile Folder Root</button>
+          <span id="tiles-root-path" class="path-label">No tile-folder root selected</span>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="edit-mode-button" type="button" class="edit-toggle inactive">
+            Enter Edit Mode
+          </button>
+        </div>
+      </header>
+
+      <main id="layout-root" class="layout-root"></main>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
