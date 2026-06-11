@@ -3,6 +3,9 @@
 A local desktop application for **viewing and listening to your downloaded video
 files** in a fully customizable, *tiling-window-manager* style layout.
 
+> **New here?** Follow the full walkthrough in **[docs/TUTORIAL.md](docs/TUTORIAL.md)** —
+> it covers installation, layout editing, folder organization, and playback step by step.
+
 Split the window into as many panes as you like, point each pane at its own
 folder of media, and play/organize everything from one screen. Each tile is
 backed by a real folder on disk, so the app doubles as a simple media organizer.
