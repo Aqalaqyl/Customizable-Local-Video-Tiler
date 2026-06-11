@@ -366,6 +366,12 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+  if (process.env.ELECTRON_SMOKE_TEST === '1') {
+    mainWindow.webContents.once('did-finish-load', () => {
+      app.quit();
+    });
+  }
 }
 
 app.whenReady().then(async () => {
