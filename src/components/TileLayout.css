@@ -1,0 +1,35 @@
+.tile-split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tile-split.split-vertical {
+  flex-direction: row;
+}
+
+.tile-split.split-horizontal {
+  flex-direction: column;
+}
+
+.tile-split-child {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.tile-split-divider {
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.split-vertical .tile-split-divider {
+  width: 1px;
+}
+
+.split-horizontal .tile-split-divider {
+  height: 1px;
+}

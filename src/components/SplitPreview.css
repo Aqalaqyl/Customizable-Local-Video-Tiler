@@ -1,0 +1,61 @@
+.split-preview-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.split-preview-dim {
+  position: absolute;
+  background: rgba(91, 141, 239, 0.08);
+  transition: none;
+}
+
+.split-preview-dim.dim-left,
+.split-preview-dim.dim-right {
+  top: 0;
+  bottom: 0;
+}
+
+.split-preview-dim.dim-top,
+.split-preview-dim.dim-bottom {
+  left: 0;
+  right: 0;
+}
+
+.split-preview-line {
+  position: absolute;
+  z-index: 2;
+  background: var(--split-preview);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.split-preview-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+}
+
+.split-preview-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--split-preview-horizontal);
+  box-shadow: 0 0 12px rgba(109, 212, 168, 0.35);
+  transform: translateY(-1px);
+}
+
+.split-preview-label {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
