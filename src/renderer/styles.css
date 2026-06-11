@@ -1,0 +1,486 @@
+:root {
+  --bg: #0f1115;
+  --bg-2: #161a21;
+  --bg-3: #1d2330;
+  --border: #2a313d;
+  --text: #e6e9ef;
+  --muted: #8b94a3;
+  --accent: #5b8cff;
+  --accent-2: #8a5bff;
+  --danger: #ff5b6e;
+  --divider: #2a313d;
+  --divider-hot: #5b8cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  user-select: none;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---------------- Toolbar ---------------- */
+
+#toolbar {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, #1a1f29, #14181f);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-center {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+}
+
+.app-mark {
+  color: var(--accent);
+  font-size: 20px;
+}
+
+.app-title {
+  font-weight: 650;
+  letter-spacing: 0.3px;
+}
+
+.edit-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.edit-hint b {
+  color: var(--text);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn.ghost {
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.25);
+}
+
+.ico {
+  font-size: 13px;
+}
+
+#library-label {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- Stage / splits ---------------- */
+
+#stage {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.split.vertical {
+  flex-direction: row;
+}
+
+.split.horizontal {
+  flex-direction: column;
+}
+
+.pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.divider {
+  flex: 0 0 6px;
+  background: var(--divider);
+  position: relative;
+  z-index: 5;
+}
+
+.divider::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.split.vertical > .divider {
+  cursor: col-resize;
+  width: 6px;
+}
+
+.split.horizontal > .divider {
+  cursor: row-resize;
+  height: 6px;
+}
+
+.divider:hover,
+.divider.dragging {
+  background: var(--divider-hot);
+}
+
+body.dragging-divider {
+  cursor: inherit;
+}
+
+body.dragging-divider * {
+  pointer-events: none;
+}
+
+/* ---------------- Tile ---------------- */
+
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tile-media {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile-video {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  outline: none;
+}
+
+.tile-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 16px;
+}
+
+.tile-empty .big {
+  font-size: 30px;
+  opacity: 0.5;
+}
+
+/* Name badge (shown on hover) */
+.tile-name-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 40;
+  background: rgba(15, 17, 21, 0.82);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tile-name-badge .folder-ico {
+  color: var(--accent);
+}
+
+.tile:hover .tile-name-badge {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Controls bar */
+.tile-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 50;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.tile:hover .tile-controls,
+body.edit-mode .tile-controls {
+  opacity: 1;
+}
+
+.tile-controls button {
+  background: rgba(15, 17, 21, 0.86);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tile-controls button:hover {
+  background: var(--bg-3);
+}
+
+.tile-controls button.danger:hover {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+/* Rename field */
+.tile-rename {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 60;
+  background: rgba(15, 17, 21, 0.95);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  width: 220px;
+  max-width: calc(100% - 16px);
+}
+
+/* Playlist */
+.tile-playlist {
+  flex: 0 0 auto;
+  max-height: 38%;
+  overflow-y: auto;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  display: none;
+}
+
+.tile.show-playlist .tile-playlist {
+  display: block;
+}
+
+.playlist-head {
+  position: sticky;
+  top: 0;
+  background: var(--bg-3);
+  padding: 6px 10px;
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.playlist-item {
+  padding: 7px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(42, 49, 61, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.playlist-item:hover {
+  background: var(--bg-3);
+}
+
+.playlist-item.active {
+  background: rgba(91, 140, 255, 0.18);
+  color: #fff;
+}
+
+.playlist-item .pi-ico {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.playlist-empty {
+  padding: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---------------- Split overlay (edit mode) ---------------- */
+
+.split-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  cursor: crosshair;
+}
+
+body.edit-mode .split-overlay {
+  display: block;
+}
+
+body.edit-mode .tile {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(91, 140, 255, 0.25);
+}
+
+/* Preview line + shaded regions */
+.preview-line {
+  position: absolute;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(91, 140, 255, 0.9);
+  display: none;
+  z-index: 3;
+}
+
+.preview-shade {
+  position: absolute;
+  background: rgba(91, 140, 255, 0.16);
+  display: none;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.split-overlay.vertical .preview-line {
+  width: 2px;
+  top: 0;
+  bottom: 0;
+}
+
+.split-overlay.horizontal .preview-line {
+  height: 2px;
+  left: 0;
+  right: 0;
+}
+
+.overlay-tag {
+  position: absolute;
+  z-index: 4;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  display: none;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------------- Toast ---------------- */
+
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  z-index: 200;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2f3744;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

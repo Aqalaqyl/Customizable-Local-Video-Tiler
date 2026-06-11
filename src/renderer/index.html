@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+    />
+    <title>Local Video Tiler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header id="toolbar">
+      <div class="toolbar-left">
+        <span class="app-mark">▦</span>
+        <span class="app-title">Local Video Tiler</span>
+      </div>
+
+      <div class="toolbar-center">
+        <span id="edit-hint" class="edit-hint hidden">
+          <b>Click</b> to split vertically &nbsp;•&nbsp;
+          <b>Shift + Click</b> to split horizontally &nbsp;•&nbsp;
+          Drag dividers to resize &nbsp;•&nbsp; <b>×</b> to remove a tile
+        </span>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="library-btn" class="btn ghost" title="Change library folder">
+          <span class="ico">📁</span>
+          <span id="library-label">Library…</span>
+        </button>
+        <button id="edit-btn" class="btn">
+          <span class="ico">✎</span> Edit Layout
+        </button>
+      </div>
+    </header>
+
+    <main id="stage"></main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>
