@@ -452,8 +452,12 @@ unchanged.
 
 ## 12. Multi-display mode (up to 4 monitors)
 
-Use multi-display mode when you want a **video wall across several physical
-monitors** — for example four screens in a 2×2 grid, or three screens in a row.
+Use multi-display mode when you want **each physical monitor to run its own
+independent tile layout** — for example one screen for sports, another for news,
+and a third for security cameras.
+
+The main window is your **control panel**. External displays do **not** mirror or
+slice the main window; each gets its own saved layout profile.
 
 ### Step 12.1 — Connect your displays
 
@@ -463,27 +467,31 @@ app is running; click **🖥 Displays** again to refresh the list.
 
 ### Step 12.2 — Open the display picker
 
-Click **🖥 Displays** in the top toolbar. A dialog lists every connected monitor
-with its name and resolution. Check the boxes for the displays you want (maximum
-**four**). By default the first available displays are pre-selected.
+Click **🖥 Displays** in the top toolbar. For each monitor you will see:
 
-### Step 12.3 — Start presenting
+- A **checkbox** to include it in the presentation
+- A **layout dropdown** (when checked) to pick which saved layout runs on that display
+- An **Edit** button to load that display’s layout into the main window for editing
 
-Click **Present**. The app:
+When you enable a display for the first time, the app creates a dedicated layout
+profile named after that monitor (e.g. `Built-in Display`). You can rename layouts
+in **▤ Layouts**.
 
-1. Arranges the selected displays in a grid based on their on-screen positions
-   (side-by-side monitors form a row; stacked monitors form a column; four
-   monitors typically form a 2×2 grid).
-2. Opens a **borderless fullscreen window** on each display.
-3. Splits your tile layout across those windows so together they form one
-   continuous video wall.
+### Step 12.3 — Assign layouts
 
-The **main window stays open** as your control panel. Edit the layout, add videos,
-or rename tiles there — changes sync to every display automatically.
+1. Check the displays you want (maximum **four**).
+2. Use each display’s **layout dropdown** to choose a different saved profile, or
+   keep the auto-created one.
+3. Click **Edit** next to a display to design its layout in the main window —
+   split tiles, add videos, rename folders, then **Save** in **▤ Layouts** (or let
+   auto-save run). Changes sync to that display if it is already presenting.
 
-### Step 12.4 — Stop presenting
+### Step 12.4 — Start presenting
 
-Any of these will close the display windows:
+Click **Present**. The app opens a **borderless fullscreen window** on each
+selected monitor, each running **its own layout** at full size.
+
+### Step 12.5 — Stop presenting
 
 - Click **🖥 Displays** → **Stop**
 - Press **`Escape`** while the main window is focused
@@ -493,20 +501,19 @@ Any of these will close the display windows:
 | Mode | Best for |
 | ---- | -------- |
 | **F11 fullscreen** | Maximize the main control window on one monitor |
-| **Multi-display** | 2–4 monitor video walls, installations, control rooms |
+| **Multi-display** | Independent video walls on 2–4 monitors at once |
 
 > **Tip:** You can use **both at once** — press **F11** on the main window while
-> presenter windows are open on other displays. The main window goes fullscreen on
-> its monitor while external displays keep showing their slices.
+> presenter windows run on other displays.
 
 ### Recommended multi-display workflow
 
 ```
-1. Build your layout in the main window
-2. Add videos to each tile
-3. Click 🖥 Displays → select monitors → Present
-4. Press play on the videos you want (in the main window or on any display)
-5. Let focus mode hide controls on each screen
+1. Click 🖥 Displays → check your monitors
+2. Click Edit on each display and build its unique layout
+3. Save each layout (▤ Layouts → Save)
+4. Click Present
+5. Each monitor shows its own tile grid fullscreen
 6. Press Escape when finished
 ```
 
@@ -739,11 +746,10 @@ from the top.
 - Drag the main window to the primary display before clicking **Present** if
   windows open on the wrong screen.
 
-### I selected 4 displays but the layout looks wrong
+### Each display shows the wrong layout
 
-The app maps displays to a grid using their physical arrangement. If monitors are
-not aligned in your OS settings, the slice order may not match what you expect.
-Re-arrange displays in system settings so they reflect the real-world layout.
+Open **🖥 Displays**, verify the **layout dropdown** for each monitor, and click
+**Present** again. Layout assignments are remembered per display.
 
 ---
 
@@ -797,7 +803,7 @@ npm run dev
 INSTALL     npm install && npm start
 LIBRARY     📁 Library…  →  pick root folder for all tile directories
 FULLSCREEN  ⛶ Fullscreen  (F11) — works with multi-display
-MULTI-DISPLAY 🖥 Displays → select up to 4 monitors → Present (Escape to stop)
+MULTI-DISPLAY 🖥 Displays → assign a layout per monitor → Present (Escape to stop)
 LAYOUTS     ▤ Layouts → create / switch / import / export profiles
 FOCUS MODE  Auto-hides UI after 2.5s idle — move mouse to wake
 EDIT        ✎ Edit Layout  (Ctrl/Cmd+E)

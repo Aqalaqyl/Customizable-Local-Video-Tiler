@@ -9,6 +9,7 @@ import {
 } from './tree.js';
 
 const api = window.api;
+const isPresenter = document.body.classList.contains('presenter-mode');
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -19,10 +20,7 @@ const state = {
   libraryPath: '',
   editMode: false,
   shiftHeld: false,
-  presenterMode: false,
-  sliceIndex: 0,
-  sliceCols: 1,
-  sliceRows: 1,
+  presenterMode: isPresenter,
   multiDisplayActive: false,
   layoutId: null,
   layoutName: 'Default'
@@ -146,26 +144,6 @@ async function ensureAllFolders() {
 function render() {
   stage.innerHTML = '';
   stage.appendChild(renderNode(state.root));
-  applyViewportSlice();
-}
-
-function applyViewportSlice() {
-  if (!state.presenterMode) return;
-  const viewport = document.getElementById('stage-viewport');
-  if (!viewport) return;
-
-  const cols = state.sliceCols;
-  const rows = state.sliceRows;
-  const col = state.sliceIndex % cols;
-  const row = Math.floor(state.sliceIndex / cols);
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  stage.style.width = `${cols * vw}px`;
-  stage.style.height = `${rows * vh}px`;
-  stage.style.transform = `translate(${-col * vw}px, ${-row * vh}px)`;
-  viewport.style.width = `${vw}px`;
-  viewport.style.height = `${vh}px`;
 }
 
 function renderNode(node) {
@@ -580,60 +558,64 @@ async function removeTile(node) {
 function setEditMode(on) {
   state.editMode = on;
   document.body.classList.toggle('edit-mode', on);
-  editBtn.classList.toggle('active', on);
-  editBtn.innerHTML = on
-    ? '<span class="ico">✓</span> Done'
-    : '<span class="ico">✎</span> Edit Layout';
-  editHint.classList.toggle('hidden', !on);
+  if (editBtn) {
+    editBtn.classList.toggle('active', on);
+    editBtn.innerHTML = on
+      ? '<span class="ico">✓</span> Done'
+      : '<span class="ico">✎</span> Edit Layout';
+  }
+  if (editHint) editHint.classList.toggle('hidden', !on);
   if (on) wakeUi();
   else scheduleIdle();
 }
 
-editBtn.addEventListener('click', () => setEditMode(!state.editMode));
+if (!isPresenter) {
+  editBtn.addEventListener('click', () => setEditMode(!state.editMode));
 
-libraryBtn.addEventListener('click', async () => {
-  const chosen = await api.chooseLibrary();
-  if (chosen) {
-    state.libraryPath = chosen;
-    updateLibraryLabel();
-    // Re-bind every tile to a folder under the new library root.
-    forEachLeaf(state.root, (l) => {
-      l.folderPath = null;
-    });
-    await ensureAllFolders();
-    render();
-    scheduleSave();
-    toast('Library folder changed');
-  }
-});
+  libraryBtn.addEventListener('click', async () => {
+    const chosen = await api.chooseLibrary();
+    if (chosen) {
+      state.libraryPath = chosen;
+      updateLibraryLabel();
+      // Re-bind every tile to a folder under the new library root.
+      forEachLeaf(state.root, (l) => {
+        l.folderPath = null;
+      });
+      await ensureAllFolders();
+      render();
+      scheduleSave();
+      toast('Library folder changed');
+    }
+  });
 
-window.addEventListener('keydown', (e) => {
-  wakeUi();
-  if (e.key === 'Shift' && !state.shiftHeld) {
-    state.shiftHeld = true;
-    if (activeOverlay) updatePreview(activeOverlay);
-  }
-  if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    setEditMode(!state.editMode);
-  }
-  if (e.key === 'F11') {
-    e.preventDefault();
-    toggleFullscreen();
-  }
-  if (e.key === 'Escape' && state.multiDisplayActive) {
-    e.preventDefault();
-    stopMultiDisplay();
-  }
-});
+  window.addEventListener('keydown', (e) => {
+    wakeUi();
+    if (e.key === 'Shift' && !state.shiftHeld) {
+      state.shiftHeld = true;
+      if (activeOverlay) updatePreview(activeOverlay);
+    }
+    if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setEditMode(!state.editMode);
+    }
+    if (e.key === 'F11') {
+      e.preventDefault();
+      toggleFullscreen();
+    }
+    if (e.key === 'Escape' && state.multiDisplayActive) {
+      e.preventDefault();
+      stopMultiDisplay();
+    }
+  });
 
-window.addEventListener('keyup', (e) => {
-  wakeUi();
-  if (e.key === 'Shift') {
-    state.shiftHeld = false;
-    if (activeOverlay) updatePreview(activeOverlay);
-  }
-});
+  window.addEventListener('keyup', (e) => {
+    wakeUi();
+    if (e.key === 'Shift') {
+      state.shiftHeld = false;
+      if (activeOverlay) updatePreview(activeOverlay);
+    }
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Focus mode: auto-hide UI when idle                                  */
@@ -686,6 +668,7 @@ document.addEventListener('visibilitychange', () => {
 /* ------------------------------------------------------------------ */
 
 function updateFullscreenLabel(isFullscreen) {
+  if (!fullscreenBtn || !fullscreenLabel) return;
   fullscreenLabel.textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
   fullscreenBtn.title = isFullscreen
     ? 'Exit fullscreen (F11)'
@@ -699,17 +682,49 @@ async function toggleFullscreen() {
   wakeUi();
 }
 
-fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+if (!isPresenter) {
+  fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+}
 
 /* ------------------------------------------------------------------ */
 /* Multi-display (up to 4 monitors)                                    */
 /* ------------------------------------------------------------------ */
 
 let availableDisplays = [];
-let selectedDisplayIds = new Set();
+let savedLayouts = [];
+const selectedDisplayIds = new Set();
+const displayLayoutAssignments = new Map();
 
 function formatDisplaySize(bounds) {
   return `${bounds.width}×${bounds.height}`;
+}
+
+function buildAssignmentsMap() {
+  const map = {};
+  for (const displayId of selectedDisplayIds) {
+    const layoutId = displayLayoutAssignments.get(displayId);
+    if (layoutId) map[displayId] = layoutId;
+  }
+  return map;
+}
+
+async function persistDisplayAssignments() {
+  await api.saveDisplayAssignments(buildAssignmentsMap());
+}
+
+async function ensureAssignmentForDisplay(display) {
+  if (displayLayoutAssignments.has(display.id)) return;
+  const ensured = await api.ensureDisplayLayout(display.id, display.label);
+  displayLayoutAssignments.set(display.id, ensured.layoutId);
+}
+
+function layoutOptionsMarkup(selectedId) {
+  return savedLayouts
+    .map(
+      (layout) =>
+        `<option value="${layout.id}"${layout.id === selectedId ? ' selected' : ''}>${layout.name}</option>`
+    )
+    .join('');
 }
 
 function renderDisplaysList() {
@@ -724,7 +739,7 @@ function renderDisplaysList() {
   displaysStartBtn.disabled = selectedDisplayIds.size === 0;
 
   availableDisplays.forEach((d) => {
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'display-row';
     const checked = selectedDisplayIds.has(d.id);
     if (checked) row.classList.add('selected');
@@ -733,7 +748,7 @@ function renderDisplaysList() {
     input.type = 'checkbox';
     input.value = d.id;
     input.checked = checked;
-    input.addEventListener('change', () => {
+    input.addEventListener('change', async () => {
       if (input.checked) {
         if (selectedDisplayIds.size >= 4) {
           input.checked = false;
@@ -741,11 +756,14 @@ function renderDisplaysList() {
           return;
         }
         selectedDisplayIds.add(d.id);
+        await ensureAssignmentForDisplay(d);
       } else {
         selectedDisplayIds.delete(d.id);
       }
       row.classList.toggle('selected', input.checked);
       displaysStartBtn.disabled = selectedDisplayIds.size === 0;
+      renderDisplaysList();
+      await persistDisplayAssignments();
     });
 
     const meta = document.createElement('div');
@@ -758,42 +776,104 @@ function renderDisplaysList() {
     detail.textContent = `${formatDisplaySize(d.bounds)}${d.primary ? ' · Primary' : ''}`;
     meta.append(title, detail);
 
-    row.append(input, meta);
+    const actions = document.createElement('div');
+    actions.className = 'display-row-actions';
+
+    if (checked) {
+      const select = document.createElement('select');
+      select.className = 'display-layout-select';
+      select.title = 'Layout for this display';
+      select.innerHTML = layoutOptionsMarkup(displayLayoutAssignments.get(d.id));
+      select.addEventListener('change', async () => {
+        displayLayoutAssignments.set(d.id, select.value);
+        await persistDisplayAssignments();
+      });
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'display-edit-btn';
+      editBtn.textContent = 'Edit';
+      editBtn.title = 'Edit this display’s layout in the main window';
+      editBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await editDisplayLayout(d.id, d.label);
+      });
+
+      actions.append(select, editBtn);
+    }
+
+    row.append(input, meta, actions);
     displaysList.appendChild(row);
   });
 }
 
+async function editDisplayLayout(displayId, displayLabel) {
+  let layoutId = displayLayoutAssignments.get(displayId);
+  if (!layoutId) {
+    const ensured = await api.ensureDisplayLayout(displayId, displayLabel);
+    layoutId = ensured.layoutId;
+    displayLayoutAssignments.set(displayId, layoutId);
+  }
+  await flushSave();
+  const res = await api.loadLayoutProfile(layoutId);
+  if (!res.ok) {
+    toast(res.error || 'Could not load layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  displaysDialog.close();
+  toast(`Editing “${res.name}” for ${displayLabel}`);
+}
+
 async function refreshDisplaysList() {
   availableDisplays = await api.listDisplays();
+  savedLayouts = await api.listLayouts();
   const status = await api.getDisplayStatus();
-  if (status.active && status.displayIds.length) {
-    selectedDisplayIds = new Set(status.displayIds);
-  } else if (selectedDisplayIds.size === 0) {
-    selectedDisplayIds = new Set(
-      availableDisplays.slice(0, Math.min(4, availableDisplays.length)).map((d) => d.id)
-    );
-  } else {
-    selectedDisplayIds = new Set(
-      [...selectedDisplayIds].filter((id) => availableDisplays.some((d) => d.id === id))
-    );
+  const stored = await api.getDisplayAssignments();
+
+  displayLayoutAssignments.clear();
+  for (const [displayId, layoutId] of Object.entries(stored)) {
+    displayLayoutAssignments.set(displayId, layoutId);
   }
+
+  if (status.active && status.assignments && status.assignments.length) {
+    selectedDisplayIds.clear();
+    for (const item of status.assignments) {
+      selectedDisplayIds.add(item.displayId);
+      displayLayoutAssignments.set(item.displayId, item.layoutId);
+    }
+  } else if (selectedDisplayIds.size === 0) {
+    for (const d of availableDisplays.slice(0, Math.min(4, availableDisplays.length))) {
+      selectedDisplayIds.add(d.id);
+      await ensureAssignmentForDisplay(d);
+    }
+  } else {
+    for (const id of [...selectedDisplayIds]) {
+      if (!availableDisplays.some((d) => d.id === id)) selectedDisplayIds.delete(id);
+    }
+    for (const d of availableDisplays) {
+      if (selectedDisplayIds.has(d.id)) await ensureAssignmentForDisplay(d);
+    }
+  }
+
   renderDisplaysList();
   updateDisplaysLabel(status);
 }
 
 function updateDisplaysLabel(status) {
+  if (!displaysBtn || !displaysLabel) return;
   state.multiDisplayActive = !!status.active;
   displaysBtn.classList.toggle('active', status.active);
   if (status.active) {
     displaysLabel.textContent = `${status.count} Display${status.count === 1 ? '' : 's'}`;
     displaysBtn.title = 'Multi-display presentation active — click to manage';
-    displaysStartBtn.classList.add('hidden');
-    displaysStopBtn.classList.remove('hidden');
+    if (displaysStartBtn) displaysStartBtn.classList.add('hidden');
+    if (displaysStopBtn) displaysStopBtn.classList.remove('hidden');
   } else {
     displaysLabel.textContent = 'Displays';
     displaysBtn.title = 'Present on up to 4 displays';
-    displaysStartBtn.classList.remove('hidden');
-    displaysStopBtn.classList.add('hidden');
+    if (displaysStartBtn) displaysStartBtn.classList.remove('hidden');
+    if (displaysStopBtn) displaysStopBtn.classList.add('hidden');
   }
 }
 
@@ -804,19 +884,32 @@ async function openDisplaysDialog() {
 }
 
 async function startMultiDisplay() {
-  const ids = [...selectedDisplayIds];
-  if (!ids.length) {
+  if (!selectedDisplayIds.size) {
     toast('Select at least one display');
     return;
   }
-  const res = await api.startDisplays(ids);
+
+  await flushSave();
+  await persistDisplayAssignments();
+
+  const assignments = [...selectedDisplayIds].map((displayId) => ({
+    displayId,
+    layoutId: displayLayoutAssignments.get(displayId)
+  }));
+
+  if (assignments.some((a) => !a.layoutId)) {
+    toast('Each selected display needs a layout');
+    return;
+  }
+
+  const res = await api.startDisplays(assignments);
   if (!res.ok) {
     toast(res.error || 'Could not start multi-display mode');
     return;
   }
   updateDisplaysLabel(res);
   displaysDialog.close();
-  toast(`Presenting on ${res.count} display${res.count === 1 ? '' : 's'}`);
+  toast(`Presenting ${res.count} independent layout${res.count === 1 ? '' : 's'}`);
 }
 
 async function stopMultiDisplay() {
@@ -826,20 +919,23 @@ async function stopMultiDisplay() {
   toast('Multi-display presentation stopped');
 }
 
-displaysBtn.addEventListener('click', () => openDisplaysDialog());
-displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
-displaysStartBtn.addEventListener('click', () => startMultiDisplay());
-displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
+if (!isPresenter) {
+  displaysBtn.addEventListener('click', () => openDisplaysDialog());
+  displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
+  displaysStartBtn.addEventListener('click', () => startMultiDisplay());
+  displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
 
-displaysDialog.addEventListener('click', (e) => {
-  if (e.target === displaysDialog) displaysDialog.close();
-});
+  displaysDialog.addEventListener('click', (e) => {
+    if (e.target === displaysDialog) displaysDialog.close();
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Saved layouts — create, load, import, export                        */
 /* ------------------------------------------------------------------ */
 
 function updateLayoutsLabel() {
+  if (!layoutsBtn || !layoutsLabel) return;
   layoutsLabel.textContent = state.layoutName || 'Layouts';
   layoutsBtn.title = `Current layout: ${state.layoutName}`;
 }
@@ -1001,24 +1097,27 @@ async function importLayoutFile() {
   toast(`Imported “${res.name}”`);
 }
 
-layoutsBtn.addEventListener('click', () => openLayoutsDialog());
-layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
-layoutsCreateBtn.addEventListener('click', () => createNewLayout());
-layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
-layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
-layoutsImportBtn.addEventListener('click', () => importLayoutFile());
-layoutsNewName.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') createNewLayout();
-});
-layoutsDialog.addEventListener('click', (e) => {
-  if (e.target === layoutsDialog) layoutsDialog.close();
-});
+if (!isPresenter) {
+  layoutsBtn.addEventListener('click', () => openLayoutsDialog());
+  layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
+  layoutsCreateBtn.addEventListener('click', () => createNewLayout());
+  layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
+  layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
+  layoutsImportBtn.addEventListener('click', () => importLayoutFile());
+  layoutsNewName.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') createNewLayout();
+  });
+  layoutsDialog.addEventListener('click', (e) => {
+    if (e.target === layoutsDialog) layoutsDialog.close();
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Misc UI                                                             */
 /* ------------------------------------------------------------------ */
 
 function updateLibraryLabel() {
+  if (!libraryLabel || !libraryBtn) return;
   const parts = state.libraryPath.split(/[\\/]/);
   const short = parts.slice(-2).join('/') || state.libraryPath;
   libraryLabel.textContent = short;
@@ -1027,6 +1126,7 @@ function updateLibraryLabel() {
 
 let toastTimer = null;
 function toast(msg) {
+  if (!toastEl) return;
   toastEl.textContent = msg;
   toastEl.classList.remove('hidden');
   clearTimeout(toastTimer);
@@ -1040,22 +1140,12 @@ function toast(msg) {
 async function applySyncPayload(payload) {
   state.libraryPath = payload.libraryPath;
   state.root = normalize(payload.layout);
-  state.sliceIndex = payload.sliceIndex;
-  state.sliceCols = payload.cols;
-  state.sliceRows = payload.rows;
   await ensureAllFolders();
   render();
 }
 
 async function bootPresenter() {
-  state.presenterMode = true;
-  const params = new URLSearchParams(window.location.search);
-  state.sliceIndex = parseInt(params.get('slice') || '0', 10);
-  state.sliceCols = parseInt(params.get('cols') || '1', 10);
-  state.sliceRows = parseInt(params.get('rows') || '1', 10);
-
   api.onPresenterSync(applySyncPayload);
-  window.addEventListener('resize', applyViewportSlice);
   await api.presenterReady();
 }
 
@@ -1106,6 +1196,9 @@ window.__lvt = {
   rerender() {
     render();
   },
+  serializeLayout() {
+    return serialize(state.root);
+  },
   async split(id, direction, ratio) {
     await doSplit(findNode(state.root, id), direction, ratio);
     return this.leaves();
@@ -1127,7 +1220,7 @@ window.__lvt = {
   }
 };
 
-if (document.body.classList.contains('presenter-mode')) {
+if (isPresenter) {
   bootPresenter();
 } else {
   boot();

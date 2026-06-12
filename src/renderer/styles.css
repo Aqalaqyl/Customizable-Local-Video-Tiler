@@ -159,7 +159,7 @@ body.ui-idle:not(.edit-mode) #stage {
   top: 0;
 }
 
-/* ---------------- Presenter (multi-display slice) ---------------- */
+/* ---------------- Presenter (per-display fullscreen) ---------------- */
 
 body.presenter-mode {
   overflow: hidden;
@@ -175,9 +175,16 @@ body.presenter-mode #stage-viewport {
 
 body.presenter-mode #stage {
   position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: top left;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  transform: none;
+}
+
+body.presenter-mode .tile-empty {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 body.presenter-mode #toolbar,
@@ -610,6 +617,10 @@ body.ui-idle:not(.edit-mode) #wake-hint {
   width: min(520px, calc(100vw - 32px));
 }
 
+.displays-dialog {
+  width: min(620px, calc(100vw - 32px));
+}
+
 .layouts-list {
   max-height: 260px;
   overflow-y: auto;
@@ -753,15 +764,51 @@ body.ui-idle:not(.edit-mode) #wake-hint {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  cursor: pointer;
   background: var(--bg-3);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.display-row:hover,
 .display-row.selected {
   border-color: var(--accent);
   background: rgba(91, 140, 255, 0.1);
+}
+
+.display-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.display-layout-select {
+  min-width: 140px;
+  max-width: 180px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.display-layout-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.display-edit-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.display-edit-btn:hover {
+  border-color: var(--accent);
 }
 
 .display-row input {
