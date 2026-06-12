@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   startDisplays: (assignments) =>
     ipcRenderer.invoke('displays:start', { assignments }),
   stopDisplays: () => ipcRenderer.invoke('displays:stop'),
+  quitApp: () => ipcRenderer.invoke('app:quit'),
   presenterReady: () => ipcRenderer.invoke('presenter:ready'),
   onPresenterSync: (callback) => {
     const listener = (_evt, payload) => callback(payload);

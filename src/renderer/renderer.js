@@ -31,6 +31,9 @@ const stage = document.getElementById('stage');
 const editBtn = document.getElementById('edit-btn') || document.getElementById('presenter-edit-btn');
 const editHint = document.getElementById('edit-hint') || document.getElementById('presenter-edit-hint');
 const presenterTitle = document.getElementById('presenter-title');
+const presenterStopBtn = document.getElementById('presenter-stop-btn');
+const presenterQuitBtn = document.getElementById('presenter-quit-btn');
+const quitAppBtn = document.getElementById('quit-app-btn');
 const libraryBtn = document.getElementById('library-btn');
 const libraryLabel = document.getElementById('library-label');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -600,15 +603,26 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     setEditMode(!state.editMode);
   }
-  if (!isPresenter) {
-    if (e.key === 'F11') {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
+    e.preventDefault();
+    quitApp();
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (state.editMode) {
       e.preventDefault();
-      toggleFullscreen();
+      setEditMode(false);
+      return;
     }
-    if (e.key === 'Escape' && state.multiDisplayActive) {
+    if (isPresenter || state.multiDisplayActive) {
       e.preventDefault();
       stopMultiDisplay();
+      return;
     }
+  }
+  if (!isPresenter && e.key === 'F11') {
+    e.preventDefault();
+    toggleFullscreen();
   }
 });
 
@@ -867,6 +881,7 @@ function updateDisplaysLabel(status) {
   if (!displaysBtn || !displaysLabel) return;
   state.multiDisplayActive = !!status.active;
   displaysBtn.classList.toggle('active', status.active);
+  if (quitAppBtn) quitAppBtn.classList.toggle('hidden', !status.active);
   if (status.active) {
     displaysLabel.textContent = `${status.count} Display${status.count === 1 ? '' : 's'}`;
     displaysBtn.title = 'Multi-display presentation active — click to manage';
@@ -916,10 +931,18 @@ async function startMultiDisplay() {
 }
 
 async function stopMultiDisplay() {
+  await flushSave();
   const res = await api.stopDisplays();
-  updateDisplaysLabel(res);
-  displaysDialog.close();
-  toast('Multi-display presentation stopped');
+  if (!isPresenter) {
+    updateDisplaysLabel(res);
+    if (displaysDialog) displaysDialog.close();
+    toast('Multi-display presentation stopped');
+  }
+}
+
+async function quitApp() {
+  await flushSave();
+  await api.quitApp();
 }
 
 if (!isPresenter) {
@@ -927,10 +950,16 @@ if (!isPresenter) {
   displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
   displaysStartBtn.addEventListener('click', () => startMultiDisplay());
   displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
+  quitAppBtn?.addEventListener('click', () => quitApp());
 
   displaysDialog.addEventListener('click', (e) => {
     if (e.target === displaysDialog) displaysDialog.close();
   });
+}
+
+if (isPresenter) {
+  presenterStopBtn?.addEventListener('click', () => stopMultiDisplay());
+  presenterQuitBtn?.addEventListener('click', () => quitApp());
 }
 
 /* ------------------------------------------------------------------ */

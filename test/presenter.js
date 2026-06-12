@@ -84,6 +84,15 @@ app.whenReady().then(async () => {
       'presenter has edit toolbar',
       await evalInPage(presenter, () => !!document.getElementById('presenter-edit-btn'))
     );
+    check(
+      'presenter has stop and quit controls',
+      await evalInPage(
+        presenter,
+        () =>
+          !!document.getElementById('presenter-stop-btn') &&
+          !!document.getElementById('presenter-quit-btn')
+      )
+    );
     if (presenter.webContents.isLoading()) {
       await new Promise((res) => presenter.webContents.once('did-finish-load', res));
     }
@@ -107,7 +116,11 @@ app.whenReady().then(async () => {
     });
     check('presenter stage has non-zero size', stageSize.width > 0 && stageSize.height > 0);
 
-    await evalInPage(win, () => window.api.stopDisplays());
+    const stopFromPresenter = await evalInPage(presenter, async () => {
+      await window.api.stopDisplays();
+      return true;
+    });
+    check('presenter can stop session via API', stopFromPresenter === true);
   } catch (err) {
     console.log('FAIL - exception:', err && err.stack ? err.stack : String(err));
     results.push({ name: 'no exception', ok: false });

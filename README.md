@@ -133,7 +133,8 @@ video wall across your entire screen. Press `F11` again to exit.
 Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
 **Present**. Each display runs its own tile grid fullscreen. Move the mouse on
 any display to reveal **✎ Edit Layout** (`Ctrl/Cmd+E`) and edit that screen’s
-tiles directly. Press **`Escape`** or **Stop** to end presentation.
+tiles directly. Press **`Escape`** or click **Stop** on any presenter to end
+presentation, or **`Ctrl+Q`** / **Quit** to exit the app.
 
 ### 8. Manage saved layouts
 

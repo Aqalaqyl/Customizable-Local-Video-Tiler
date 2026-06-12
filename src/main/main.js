@@ -741,6 +741,12 @@ ipcMain.handle('displays:stop', async () => {
   return stopDisplaySession();
 });
 
+ipcMain.handle('app:quit', async () => {
+  stopDisplaySession();
+  app.quit();
+  return true;
+});
+
 ipcMain.handle('presenter:ready', async (evt) => {
   const win = BrowserWindow.fromWebContents(evt.sender);
   syncPresenterWindow(win);
