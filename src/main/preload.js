@@ -40,8 +40,13 @@ contextBridge.exposeInMainWorld('api', {
 
   listDisplays: () => ipcRenderer.invoke('displays:list'),
   getDisplayStatus: () => ipcRenderer.invoke('displays:status'),
-  startDisplays: (displayIds, layout) =>
-    ipcRenderer.invoke('displays:start', { displayIds, layout }),
+  getDisplayAssignments: () => ipcRenderer.invoke('displays:getAssignments'),
+  saveDisplayAssignments: (map) =>
+    ipcRenderer.invoke('displays:saveAssignments', { map }),
+  ensureDisplayLayout: (displayId, displayLabel) =>
+    ipcRenderer.invoke('displays:ensureLayout', { displayId, displayLabel }),
+  startDisplays: (assignments) =>
+    ipcRenderer.invoke('displays:start', { assignments }),
   stopDisplays: () => ipcRenderer.invoke('displays:stop'),
   presenterReady: () => ipcRenderer.invoke('presenter:ready'),
   onPresenterSync: (callback) => {

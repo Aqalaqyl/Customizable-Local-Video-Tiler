@@ -40,8 +40,8 @@ backed by a real folder on disk, so the app doubles as a simple media organizer.
   key to bring controls back.
 - **Fullscreen** – press `F11` or click **Fullscreen** for an edge-to-edge video
   wall on your entire display.
-- **Multi-display** – span your layout across up to **4 monitors** at once. Each
-  display shows its slice of the grid in borderless fullscreen. Works alongside
+- **Multi-display** – run up to **4 independent layouts** at once, one per
+  monitor. Assign a saved layout profile to each display. Works alongside
   main-window fullscreen (`F11`).
 - **Saved layouts** – create, switch, import, and export named layout profiles.
   Each profile stores your tile splits, names, and video selections.
@@ -130,11 +130,10 @@ video wall across your entire screen. Press `F11` again to exit.
 
 ### 7. Present on multiple displays
 
-Click **🖥 Displays** in the toolbar, select up to four monitors, and click
-**Present**. The app opens a borderless fullscreen window on each display, each
-showing its portion of your layout. Press **`Escape`** or click **Stop** to end
-multi-display mode. You can also press **`F11`** on the main window while
-presenting.
+Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
+**Present**. Each display runs its own tile grid fullscreen (not a copy of the
+main window). Use **Edit** beside a display to design its layout. Press
+**`Escape`** or **Stop** to end presentation.
 
 ### 8. Manage saved layouts
 

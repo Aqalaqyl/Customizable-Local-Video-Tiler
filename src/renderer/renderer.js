@@ -21,11 +21,6 @@ const state = {
   editMode: false,
   shiftHeld: false,
   presenterMode: isPresenter,
-  sliceIndex: 0,
-  sliceCols: 1,
-  sliceRows: 1,
-  viewportWidth: 0,
-  viewportHeight: 0,
   multiDisplayActive: false,
   layoutId: null,
   layoutName: 'Default'
@@ -149,38 +144,6 @@ async function ensureAllFolders() {
 function render() {
   stage.innerHTML = '';
   stage.appendChild(renderNode(state.root));
-  applyViewportSlice();
-}
-
-function presenterViewportSize() {
-  const viewport = document.getElementById('stage-viewport');
-  const vw =
-    state.viewportWidth ||
-    (viewport && viewport.clientWidth) ||
-    window.innerWidth ||
-    document.documentElement.clientWidth;
-  const vh =
-    state.viewportHeight ||
-    (viewport && viewport.clientHeight) ||
-    window.innerHeight ||
-    document.documentElement.clientHeight;
-  return { vw: Math.max(1, Math.round(vw)), vh: Math.max(1, Math.round(vh)) };
-}
-
-function applyViewportSlice() {
-  if (!state.presenterMode) return;
-  const viewport = document.getElementById('stage-viewport');
-  if (!viewport) return;
-
-  const cols = Math.max(1, state.sliceCols);
-  const rows = Math.max(1, state.sliceRows);
-  const col = state.sliceIndex % cols;
-  const row = Math.floor(state.sliceIndex / cols);
-  const { vw, vh } = presenterViewportSize();
-
-  stage.style.width = `${cols * vw}px`;
-  stage.style.height = `${rows * vh}px`;
-  stage.style.transform = `translate(${-col * vw}px, ${-row * vh}px)`;
 }
 
 function renderNode(node) {
@@ -728,10 +691,40 @@ if (!isPresenter) {
 /* ------------------------------------------------------------------ */
 
 let availableDisplays = [];
-let selectedDisplayIds = new Set();
+let savedLayouts = [];
+const selectedDisplayIds = new Set();
+const displayLayoutAssignments = new Map();
 
 function formatDisplaySize(bounds) {
   return `${bounds.width}×${bounds.height}`;
+}
+
+function buildAssignmentsMap() {
+  const map = {};
+  for (const displayId of selectedDisplayIds) {
+    const layoutId = displayLayoutAssignments.get(displayId);
+    if (layoutId) map[displayId] = layoutId;
+  }
+  return map;
+}
+
+async function persistDisplayAssignments() {
+  await api.saveDisplayAssignments(buildAssignmentsMap());
+}
+
+async function ensureAssignmentForDisplay(display) {
+  if (displayLayoutAssignments.has(display.id)) return;
+  const ensured = await api.ensureDisplayLayout(display.id, display.label);
+  displayLayoutAssignments.set(display.id, ensured.layoutId);
+}
+
+function layoutOptionsMarkup(selectedId) {
+  return savedLayouts
+    .map(
+      (layout) =>
+        `<option value="${layout.id}"${layout.id === selectedId ? ' selected' : ''}>${layout.name}</option>`
+    )
+    .join('');
 }
 
 function renderDisplaysList() {
@@ -746,7 +739,7 @@ function renderDisplaysList() {
   displaysStartBtn.disabled = selectedDisplayIds.size === 0;
 
   availableDisplays.forEach((d) => {
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'display-row';
     const checked = selectedDisplayIds.has(d.id);
     if (checked) row.classList.add('selected');
@@ -755,7 +748,7 @@ function renderDisplaysList() {
     input.type = 'checkbox';
     input.value = d.id;
     input.checked = checked;
-    input.addEventListener('change', () => {
+    input.addEventListener('change', async () => {
       if (input.checked) {
         if (selectedDisplayIds.size >= 4) {
           input.checked = false;
@@ -763,11 +756,14 @@ function renderDisplaysList() {
           return;
         }
         selectedDisplayIds.add(d.id);
+        await ensureAssignmentForDisplay(d);
       } else {
         selectedDisplayIds.delete(d.id);
       }
       row.classList.toggle('selected', input.checked);
       displaysStartBtn.disabled = selectedDisplayIds.size === 0;
+      renderDisplaysList();
+      await persistDisplayAssignments();
     });
 
     const meta = document.createElement('div');
@@ -780,25 +776,86 @@ function renderDisplaysList() {
     detail.textContent = `${formatDisplaySize(d.bounds)}${d.primary ? ' · Primary' : ''}`;
     meta.append(title, detail);
 
-    row.append(input, meta);
+    const actions = document.createElement('div');
+    actions.className = 'display-row-actions';
+
+    if (checked) {
+      const select = document.createElement('select');
+      select.className = 'display-layout-select';
+      select.title = 'Layout for this display';
+      select.innerHTML = layoutOptionsMarkup(displayLayoutAssignments.get(d.id));
+      select.addEventListener('change', async () => {
+        displayLayoutAssignments.set(d.id, select.value);
+        await persistDisplayAssignments();
+      });
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'display-edit-btn';
+      editBtn.textContent = 'Edit';
+      editBtn.title = 'Edit this display’s layout in the main window';
+      editBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await editDisplayLayout(d.id, d.label);
+      });
+
+      actions.append(select, editBtn);
+    }
+
+    row.append(input, meta, actions);
     displaysList.appendChild(row);
   });
 }
 
+async function editDisplayLayout(displayId, displayLabel) {
+  let layoutId = displayLayoutAssignments.get(displayId);
+  if (!layoutId) {
+    const ensured = await api.ensureDisplayLayout(displayId, displayLabel);
+    layoutId = ensured.layoutId;
+    displayLayoutAssignments.set(displayId, layoutId);
+  }
+  await flushSave();
+  const res = await api.loadLayoutProfile(layoutId);
+  if (!res.ok) {
+    toast(res.error || 'Could not load layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  displaysDialog.close();
+  toast(`Editing “${res.name}” for ${displayLabel}`);
+}
+
 async function refreshDisplaysList() {
   availableDisplays = await api.listDisplays();
+  savedLayouts = await api.listLayouts();
   const status = await api.getDisplayStatus();
-  if (status.active && status.displayIds.length) {
-    selectedDisplayIds = new Set(status.displayIds);
-  } else if (selectedDisplayIds.size === 0) {
-    selectedDisplayIds = new Set(
-      availableDisplays.slice(0, Math.min(4, availableDisplays.length)).map((d) => d.id)
-    );
-  } else {
-    selectedDisplayIds = new Set(
-      [...selectedDisplayIds].filter((id) => availableDisplays.some((d) => d.id === id))
-    );
+  const stored = await api.getDisplayAssignments();
+
+  displayLayoutAssignments.clear();
+  for (const [displayId, layoutId] of Object.entries(stored)) {
+    displayLayoutAssignments.set(displayId, layoutId);
   }
+
+  if (status.active && status.assignments && status.assignments.length) {
+    selectedDisplayIds.clear();
+    for (const item of status.assignments) {
+      selectedDisplayIds.add(item.displayId);
+      displayLayoutAssignments.set(item.displayId, item.layoutId);
+    }
+  } else if (selectedDisplayIds.size === 0) {
+    for (const d of availableDisplays.slice(0, Math.min(4, availableDisplays.length))) {
+      selectedDisplayIds.add(d.id);
+      await ensureAssignmentForDisplay(d);
+    }
+  } else {
+    for (const id of [...selectedDisplayIds]) {
+      if (!availableDisplays.some((d) => d.id === id)) selectedDisplayIds.delete(id);
+    }
+    for (const d of availableDisplays) {
+      if (selectedDisplayIds.has(d.id)) await ensureAssignmentForDisplay(d);
+    }
+  }
+
   renderDisplaysList();
   updateDisplaysLabel(status);
 }
@@ -827,20 +884,32 @@ async function openDisplaysDialog() {
 }
 
 async function startMultiDisplay() {
-  const ids = [...selectedDisplayIds];
-  if (!ids.length) {
+  if (!selectedDisplayIds.size) {
     toast('Select at least one display');
     return;
   }
+
   await flushSave();
-  const res = await api.startDisplays(ids, serialize(state.root));
+  await persistDisplayAssignments();
+
+  const assignments = [...selectedDisplayIds].map((displayId) => ({
+    displayId,
+    layoutId: displayLayoutAssignments.get(displayId)
+  }));
+
+  if (assignments.some((a) => !a.layoutId)) {
+    toast('Each selected display needs a layout');
+    return;
+  }
+
+  const res = await api.startDisplays(assignments);
   if (!res.ok) {
     toast(res.error || 'Could not start multi-display mode');
     return;
   }
   updateDisplaysLabel(res);
   displaysDialog.close();
-  toast(`Presenting on ${res.count} display${res.count === 1 ? '' : 's'}`);
+  toast(`Presenting ${res.count} independent layout${res.count === 1 ? '' : 's'}`);
 }
 
 async function stopMultiDisplay() {
@@ -1071,33 +1140,12 @@ function toast(msg) {
 async function applySyncPayload(payload) {
   state.libraryPath = payload.libraryPath;
   state.root = normalize(payload.layout);
-  state.sliceIndex = payload.sliceIndex;
-  state.sliceCols = payload.cols;
-  state.sliceRows = payload.rows;
-  state.viewportWidth = payload.viewportWidth || state.viewportWidth;
-  state.viewportHeight = payload.viewportHeight || state.viewportHeight;
   await ensureAllFolders();
   render();
-  requestAnimationFrame(() => {
-    applyViewportSlice();
-    requestAnimationFrame(applyViewportSlice);
-  });
 }
 
 async function bootPresenter() {
-  const params = new URLSearchParams(window.location.search);
-  state.sliceIndex = parseInt(params.get('slice') || '0', 10);
-  state.sliceCols = parseInt(params.get('cols') || '1', 10);
-  state.sliceRows = parseInt(params.get('rows') || '1', 10);
-  state.viewportWidth = parseInt(params.get('vw') || '0', 10);
-  state.viewportHeight = parseInt(params.get('vh') || '0', 10);
-
   api.onPresenterSync(applySyncPayload);
-  window.addEventListener('resize', () => {
-    state.viewportWidth = 0;
-    state.viewportHeight = 0;
-    applyViewportSlice();
-  });
   await api.presenterReady();
 }
 

@@ -27,7 +27,7 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 let mainWindow = null;
-/** @type {{ displayIds: string[], cols: number, rows: number, windows: import('electron').BrowserWindow[] } | null} */
+/** @type {{ assignments: object[], windows: import('electron').BrowserWindow[] } | null} */
 let displaySession = null;
 
 /* ------------------------------------------------------------------ */
@@ -157,25 +157,38 @@ function findDisplayById(id) {
   return screen.getAllDisplays().find((d) => String(d.id) === String(id)) || null;
 }
 
+function getDisplayLayoutMap(cfg) {
+  return cfg.displayLayoutMap && typeof cfg.displayLayoutMap === 'object'
+    ? { ...cfg.displayLayoutMap }
+    : {};
+}
+
+function saveDisplayLayoutMap(map) {
+  const cfg = readConfigMigrated();
+  cfg.displayLayoutMap = map;
+  persistConfig(cfg);
+  return cfg.displayLayoutMap;
+}
+
+function resolveLayoutSnapshot(layoutId) {
+  if (!layoutId) return null;
+  const entry = readLayoutFile(userDataPath(), layoutId);
+  return entry ? entry.layout : null;
+}
+
 function getPresenterPayload(win) {
-  const slice = win && win.__slice ? win.__slice : { index: 0, cols: 1, rows: 1 };
-  const layout =
-    displaySession && displaySession.layoutSnapshot != null
-      ? displaySession.layoutSnapshot
-      : getActiveLayoutTree();
+  const assignment = win && win.__assignment ? win.__assignment : null;
   return {
-    layout,
+    layout: assignment ? assignment.layoutSnapshot : getActiveLayoutTree(),
     libraryPath: getLibraryPath(),
-    sliceIndex: slice.index,
-    cols: slice.cols,
-    rows: slice.rows,
-    viewportWidth: slice.width || 0,
-    viewportHeight: slice.height || 0
+    displayId: assignment ? assignment.displayId : null,
+    layoutId: assignment ? assignment.layoutId : null,
+    displayLabel: assignment ? assignment.displayLabel : null
   };
 }
 
 function syncPresenterWindow(win) {
-  if (!win || win.isDestroyed() || win.__slice == null) return;
+  if (!win || win.isDestroyed() || win.__assignment == null) return;
   if (win.webContents.isLoading()) {
     win.webContents.once('did-finish-load', () => syncPresenterWindow(win));
     return;
@@ -187,6 +200,24 @@ function syncAllPresenters() {
   if (!displaySession) return;
   for (const win of displaySession.windows) {
     syncPresenterWindow(win);
+  }
+}
+
+function syncPresentersForLayout(layoutId, layout) {
+  if (!displaySession || !layoutId) return;
+  let changed = false;
+  for (const item of displaySession.assignments) {
+    if (item.layoutId === layoutId) {
+      item.layoutSnapshot = layout;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  for (const win of displaySession.windows) {
+    if (win.__assignment && win.__assignment.layoutId === layoutId) {
+      win.__assignment.layoutSnapshot = layout;
+      syncPresenterWindow(win);
+    }
   }
 }
 
@@ -203,7 +234,7 @@ function stopDisplaySession() {
   return { ok: true, active: false };
 }
 
-function createPresenterWindow(display, slice) {
+function createPresenterWindow(display, assignment) {
   const win = new BrowserWindow({
     x: display.bounds.x,
     y: display.bounds.y,
@@ -221,22 +252,10 @@ function createPresenterWindow(display, slice) {
     }
   });
 
-  win.__slice = {
-    ...slice,
-    width: display.bounds.width,
-    height: display.bounds.height
-  };
+  win.__assignment = assignment;
   win.removeMenu();
 
-  win.loadFile(path.join(__dirname, '..', 'renderer', 'presenter.html'), {
-    query: {
-      slice: String(slice.index),
-      cols: String(slice.cols),
-      rows: String(slice.rows),
-      vw: String(display.bounds.width),
-      vh: String(display.bounds.height)
-    }
-  });
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'presenter.html'));
 
   win.once('ready-to-show', () => {
     win.setBounds(display.bounds);
@@ -264,8 +283,11 @@ function createPresenterWindow(display, slice) {
       mainWindow.webContents.send('display:session-changed', {
         active: true,
         count: displaySession.windows.length,
-        cols: displaySession.cols,
-        rows: displaySession.rows
+        assignments: displaySession.assignments.map((a) => ({
+          displayId: a.displayId,
+          layoutId: a.layoutId,
+          layoutName: a.layoutName
+        }))
       });
     }
   });
@@ -273,44 +295,79 @@ function createPresenterWindow(display, slice) {
   return win;
 }
 
-function startDisplaySession(displayIds, layoutSnapshot) {
+function startDisplaySession(assignmentsInput) {
   stopDisplaySession();
 
-  const ids = [...new Set(displayIds.map(String))].slice(0, 4);
-  if (ids.length === 0) {
+  const assignments = (assignmentsInput || []).slice(0, 4);
+  if (assignments.length === 0) {
     return { ok: false, error: 'Select at least one display' };
   }
 
-  const displays = ids.map(findDisplayById).filter(Boolean);
-  if (displays.length === 0) {
+  const resolved = [];
+  for (const item of assignments) {
+    const display = findDisplayById(item.displayId);
+    if (!display) continue;
+    const layoutId = String(item.layoutId || '');
+    const entry = layoutId ? readLayoutFile(userDataPath(), layoutId) : null;
+    if (!entry) {
+      return { ok: false, error: `Layout not found for display ${display.label || item.displayId}` };
+    }
+    resolved.push({
+      displayId: String(item.displayId),
+      layoutId: entry.id,
+      layoutName: entry.name,
+      layoutSnapshot: entry.layout,
+      displayLabel: display.label || `Display ${resolved.length + 1}`,
+      display
+    });
+  }
+
+  if (resolved.length === 0) {
     return { ok: false, error: 'No matching displays found' };
   }
 
-  const sorted = sortDisplaysInGridOrder(displays);
-  const { cols, rows } = arrangeDisplays(sorted);
-  const windows = sorted.map((display, index) =>
-    createPresenterWindow(display, { index, cols, rows, total: sorted.length })
-  );
+  const windows = resolved.map((item) => createPresenterWindow(item.display, item));
 
   displaySession = {
-    displayIds: ids,
-    cols,
-    rows,
-    windows,
-    layoutSnapshot: layoutSnapshot != null ? layoutSnapshot : getActiveLayoutTree()
+    assignments: resolved,
+    windows
   };
+
+  const statusAssignments = resolved.map((a) => ({
+    displayId: a.displayId,
+    layoutId: a.layoutId,
+    layoutName: a.layoutName,
+    displayLabel: a.displayLabel
+  }));
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('display:session-changed', {
       active: true,
-      count: sorted.length,
-      cols,
-      rows,
-      displayIds: ids
+      count: resolved.length,
+      assignments: statusAssignments
     });
   }
 
-  return { ok: true, active: true, count: sorted.length, cols, rows, displayIds: ids };
+  return {
+    ok: true,
+    active: true,
+    count: resolved.length,
+    assignments: statusAssignments
+  };
+}
+
+function ensureDisplayLayout(displayId, displayLabel) {
+  const cfg = readConfigMigrated();
+  const map = getDisplayLayoutMap(cfg);
+  const id = String(displayId);
+  if (map[id]) {
+    const existing = readLayoutFile(userDataPath(), map[id]);
+    if (existing) return { layoutId: existing.id, layoutName: existing.name, created: false };
+  }
+  const entry = createLayout(userDataPath(), displayLabel || `Display ${id}`);
+  map[id] = entry.id;
+  saveDisplayLayoutMap(map);
+  return { layoutId: entry.id, layoutName: entry.name, created: true };
 }
 
 /* ------------------------------------------------------------------ */
@@ -490,8 +547,7 @@ ipcMain.handle('layout:load', async () => {
 ipcMain.handle('layout:save', async (_evt, layout) => {
   const cfg = readConfigMigrated();
   saveActiveLayout(userDataPath(), cfg, layout);
-  if (displaySession) displaySession.layoutSnapshot = layout;
-  syncAllPresenters();
+  syncPresentersForLayout(cfg.activeLayoutId, layout);
   return true;
 });
 
@@ -528,7 +584,7 @@ ipcMain.handle('layouts:load', async (_evt, { id }) => {
   if (!entry) return { ok: false, error: 'Layout not found' };
   const next = setActiveLayout(userDataPath(), cfg, id);
   persistConfig(next);
-  syncAllPresenters();
+  syncPresentersForLayout(entry.id, entry.layout);
   return {
     ok: true,
     id: entry.id,
@@ -618,7 +674,7 @@ ipcMain.handle('layouts:import', async () => {
   const cfg = readConfigMigrated();
   const next = setActiveLayout(userDataPath(), cfg, entry.id);
   persistConfig(next);
-  syncAllPresenters();
+  syncPresentersForLayout(entry.id, entry.layout);
   return {
     ok: true,
     id: entry.id,
@@ -633,23 +689,36 @@ ipcMain.handle('displays:list', async () => {
 
 ipcMain.handle('displays:status', async () => {
   if (!displaySession) {
-    return { active: false, count: 0, cols: 1, rows: 1, displayIds: [] };
+    return { active: false, count: 0, assignments: [] };
   }
   return {
     active: true,
     count: displaySession.windows.length,
-    cols: displaySession.cols,
-    rows: displaySession.rows,
-    displayIds: displaySession.displayIds
+    assignments: displaySession.assignments.map((a) => ({
+      displayId: a.displayId,
+      layoutId: a.layoutId,
+      layoutName: a.layoutName,
+      displayLabel: a.displayLabel
+    }))
   };
 });
 
-ipcMain.handle('displays:start', async (_evt, { displayIds, layout }) => {
-  if (layout != null) {
-    const cfg = readConfigMigrated();
-    saveActiveLayout(userDataPath(), cfg, layout);
-  }
-  return startDisplaySession(displayIds || [], layout);
+ipcMain.handle('displays:getAssignments', async () => {
+  return getDisplayLayoutMap(readConfigMigrated());
+});
+
+ipcMain.handle('displays:saveAssignments', async (_evt, { map }) => {
+  if (!map || typeof map !== 'object') return { ok: false };
+  saveDisplayLayoutMap(map);
+  return { ok: true };
+});
+
+ipcMain.handle('displays:ensureLayout', async (_evt, { displayId, displayLabel }) => {
+  return ensureDisplayLayout(displayId, displayLabel);
+});
+
+ipcMain.handle('displays:start', async (_evt, { assignments }) => {
+  return startDisplaySession(assignments || []);
 });
 
 ipcMain.handle('displays:stop', async () => {

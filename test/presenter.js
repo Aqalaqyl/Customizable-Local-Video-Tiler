@@ -1,6 +1,6 @@
 'use strict';
 
-// Verifies presenter windows receive layout content (not a blank stage).
+// Verifies presenter windows receive their own layout (not a blank stage).
 // Run: xvfb-run -a ./node_modules/.bin/electron test/presenter.js --no-sandbox
 
 const { app, BrowserWindow } = require('electron');
@@ -69,12 +69,15 @@ app.whenReady().then(async () => {
     const startRes = await evalInPage(
       win,
       async (displayId) => {
-        const layout = window.__lvt.serializeLayout();
-        return window.api.startDisplays([displayId], layout);
+        const ensured = await window.api.ensureDisplayLayout(displayId, 'Test Display');
+        return window.api.startDisplays([
+          { displayId, layoutId: ensured.layoutId }
+        ]);
       },
       displays[0].id
     );
     check('presenter session starts', startRes.ok === true);
+    check('assignment includes layout id', !!startRes.assignments?.[0]?.layoutId);
 
     const presenter = await waitForPresenter();
     if (presenter.webContents.isLoading()) {
