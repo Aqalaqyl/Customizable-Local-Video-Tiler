@@ -8,6 +8,17 @@ const {
   sortDisplaysInGridOrder,
   arrangeDisplays
 } = require('./displays');
+const {
+  listLayoutFiles,
+  readLayoutFile,
+  getActiveLayout,
+  saveActiveLayout,
+  createLayout,
+  setActiveLayout,
+  deleteLayout,
+  importLayoutData,
+  validateLayoutFile
+} = require('./layouts');
 
 const VIDEO_EXTENSIONS = new Set([
   '.mp4', '.m4v', '.mkv', '.webm', '.ogv', '.ogg', '.mov', '.avi',
@@ -57,8 +68,35 @@ function writeConfig(cfg) {
   }
 }
 
+function userDataPath() {
+  return app.getPath('userData');
+}
+
+function persistConfig(cfg) {
+  writeConfig(cfg);
+  return cfg;
+}
+
+function readConfigMigrated() {
+  return migrateConfigStorage(readConfig());
+}
+
+function migrateConfigStorage(cfg) {
+  const { cfg: migrated } = getActiveLayout(userDataPath(), cfg);
+  if (migrated.activeLayoutId !== cfg.activeLayoutId || cfg.layout) {
+    persistConfig(migrated);
+  }
+  return migrated;
+}
+
+function getActiveLayoutTree() {
+  const cfg = readConfigMigrated();
+  const { entry } = getActiveLayout(userDataPath(), cfg);
+  return entry ? entry.layout : null;
+}
+
 function getLibraryPath() {
-  const cfg = readConfig();
+  const cfg = readConfigMigrated();
   const p = cfg.libraryPath || defaultLibraryPath();
   try {
     fs.mkdirSync(p, { recursive: true });
@@ -120,9 +158,8 @@ function findDisplayById(id) {
 }
 
 function getPresenterPayload(sliceIndex) {
-  const cfg = readConfig();
   return {
-    layout: cfg.layout || null,
+    layout: getActiveLayoutTree(),
     libraryPath: getLibraryPath(),
     sliceIndex,
     cols: displaySession ? displaySession.cols : 1,
@@ -234,7 +271,6 @@ function startDisplaySession(displayIds) {
   displaySession = { displayIds: ids, cols, rows, windows };
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
     mainWindow.webContents.send('display:session-changed', {
       active: true,
       count: sorted.length,
@@ -311,9 +347,9 @@ ipcMain.handle('library:choose', async () => {
   });
   if (result.canceled || !result.filePaths.length) return null;
   const chosen = result.filePaths[0];
-  const cfg = readConfig();
+  const cfg = readConfigMigrated();
   cfg.libraryPath = chosen;
-  writeConfig(cfg);
+  persistConfig(cfg);
   return chosen;
 });
 
@@ -418,16 +454,146 @@ ipcMain.handle('videos:add', async (_evt, { folderPath }) => {
 });
 
 ipcMain.handle('layout:load', async () => {
-  const cfg = readConfig();
-  return cfg.layout || null;
+  return getActiveLayoutTree();
 });
 
 ipcMain.handle('layout:save', async (_evt, layout) => {
-  const cfg = readConfig();
-  cfg.layout = layout;
-  const ok = writeConfig(cfg);
+  const cfg = readConfigMigrated();
+  saveActiveLayout(userDataPath(), cfg, layout);
   syncAllPresenters();
-  return ok;
+  return true;
+});
+
+ipcMain.handle('layouts:list', async () => {
+  const cfg = readConfigMigrated();
+  const items = listLayoutFiles(userDataPath());
+  return items.map((e) => ({
+    id: e.id,
+    name: e.name,
+    updatedAt: e.updatedAt,
+    active: e.id === cfg.activeLayoutId
+  }));
+});
+
+ipcMain.handle('layouts:active', async () => {
+  const cfg = readConfigMigrated();
+  const { entry } = getActiveLayout(userDataPath(), cfg);
+  return {
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout,
+    updatedAt: entry.updatedAt
+  };
+});
+
+ipcMain.handle('layouts:create', async (_evt, { name }) => {
+  const entry = createLayout(userDataPath(), name);
+  return { id: entry.id, name: entry.name, layout: entry.layout };
+});
+
+ipcMain.handle('layouts:load', async (_evt, { id }) => {
+  const cfg = readConfigMigrated();
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const next = setActiveLayout(userDataPath(), cfg, id);
+  persistConfig(next);
+  syncAllPresenters();
+  return {
+    ok: true,
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout,
+    updatedAt: entry.updatedAt
+  };
+});
+
+ipcMain.handle('layouts:delete', async (_evt, { id }) => {
+  const cfg = readConfigMigrated();
+  const all = listLayoutFiles(userDataPath());
+  if (all.length <= 1) {
+    return { ok: false, error: 'Cannot delete the only saved layout' };
+  }
+  if (id === cfg.activeLayoutId) {
+    return { ok: false, error: 'Switch to another layout before deleting this one' };
+  }
+  if (!deleteLayout(userDataPath(), id)) {
+    return { ok: false, error: 'Layout not found' };
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('layouts:rename', async (_evt, { id, name }) => {
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const trimmed = String(name || '').trim().slice(0, 120);
+  if (!trimmed) return { ok: false, error: 'Name is required' };
+  const { writeLayoutFile } = require('./layouts');
+  writeLayoutFile(userDataPath(), {
+    id,
+    name: trimmed,
+    updatedAt: new Date().toISOString(),
+    layout: entry.layout
+  });
+  return { ok: true, id, name: trimmed };
+});
+
+ipcMain.handle('layouts:export', async (_evt, { id }) => {
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export layout',
+    defaultPath: `${entry.name.replace(/[<>:"/\\|?*]/g, '_')}.lvt-layout.json`,
+    filters: [
+      { name: 'Layout files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  const payload = {
+    version: 1,
+    name: entry.name,
+    exportedAt: new Date().toISOString(),
+    layout: entry.layout
+  };
+  await fsp.writeFile(result.filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return { ok: true, path: result.filePath };
+});
+
+ipcMain.handle('layouts:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import layout',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Layout files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return { ok: false, canceled: true };
+  }
+  const filePath = result.filePaths[0];
+  let raw;
+  try {
+    raw = JSON.parse(await fsp.readFile(filePath, 'utf8'));
+  } catch (e) {
+    return { ok: false, error: 'Invalid layout file' };
+  }
+  if (!validateLayoutFile(raw)) {
+    return { ok: false, error: 'Layout file is missing a valid layout tree' };
+  }
+  const fallback = path.basename(filePath, path.extname(filePath));
+  const entry = importLayoutData(userDataPath(), raw, fallback);
+  if (!entry) return { ok: false, error: 'Could not import layout' };
+  const cfg = readConfigMigrated();
+  const next = setActiveLayout(userDataPath(), cfg, entry.id);
+  persistConfig(next);
+  syncAllPresenters();
+  return {
+    ok: true,
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout
+  };
 });
 
 ipcMain.handle('displays:list', async () => {
@@ -507,5 +673,6 @@ app.on('before-quit', () => {
 module.exports = {
   sortDisplaysInGridOrder,
   arrangeDisplays,
-  describeDisplay
+  describeDisplay,
+  validateLayoutFile
 };

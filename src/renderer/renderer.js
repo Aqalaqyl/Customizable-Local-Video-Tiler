@@ -23,7 +23,9 @@ const state = {
   sliceIndex: 0,
   sliceCols: 1,
   sliceRows: 1,
-  multiDisplayActive: false
+  multiDisplayActive: false,
+  layoutId: null,
+  layoutName: 'Default'
 };
 
 const stage = document.getElementById('stage');
@@ -40,6 +42,16 @@ const displaysList = document.getElementById('displays-list');
 const displaysStartBtn = document.getElementById('displays-start');
 const displaysStopBtn = document.getElementById('displays-stop');
 const displaysCancelBtn = document.getElementById('displays-cancel');
+const layoutsBtn = document.getElementById('layouts-btn');
+const layoutsLabel = document.getElementById('layouts-label');
+const layoutsDialog = document.getElementById('layouts-dialog');
+const layoutsList = document.getElementById('layouts-list');
+const layoutsNewName = document.getElementById('layouts-new-name');
+const layoutsCreateBtn = document.getElementById('layouts-create');
+const layoutsSaveBtn = document.getElementById('layouts-save');
+const layoutsExportBtn = document.getElementById('layouts-export');
+const layoutsImportBtn = document.getElementById('layouts-import');
+const layoutsCloseBtn = document.getElementById('layouts-close');
 const toastEl = document.getElementById('toast');
 
 const IDLE_MS = 2500;
@@ -58,9 +70,13 @@ let saveTimer = null;
 function scheduleSave() {
   if (state.presenterMode) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    api.saveLayout(serialize(state.root));
-  }, 250);
+  saveTimer = setTimeout(() => flushSave(), 250);
+}
+
+async function flushSave() {
+  if (state.presenterMode) return;
+  clearTimeout(saveTimer);
+  await api.saveLayout(serialize(state.root));
 }
 
 function serialize(node) {
@@ -678,10 +694,6 @@ function updateFullscreenLabel(isFullscreen) {
 }
 
 async function toggleFullscreen() {
-  if (state.multiDisplayActive) {
-    toast('Stop multi-display mode first (Displays → Stop)');
-    return;
-  }
   const next = await api.toggleFullscreen();
   updateFullscreenLabel(next);
   wakeUi();
@@ -824,6 +836,185 @@ displaysDialog.addEventListener('click', (e) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Saved layouts — create, load, import, export                        */
+/* ------------------------------------------------------------------ */
+
+function updateLayoutsLabel() {
+  layoutsLabel.textContent = state.layoutName || 'Layouts';
+  layoutsBtn.title = `Current layout: ${state.layoutName}`;
+}
+
+function formatLayoutDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString();
+  } catch (e) {
+    return '';
+  }
+}
+
+async function renderLayoutsList() {
+  const items = await api.listLayouts();
+  layoutsList.innerHTML = '';
+  if (!items.length) {
+    layoutsList.innerHTML = '<p class="displays-empty">No saved layouts yet.</p>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'layout-row' + (item.active ? ' active' : '');
+
+    const meta = document.createElement('div');
+    meta.className = 'layout-meta';
+    const title = document.createElement('div');
+    title.className = 'layout-title';
+    title.textContent = item.name;
+    const detail = document.createElement('div');
+    detail.className = 'layout-detail';
+    detail.textContent = item.active
+      ? `Active · ${formatLayoutDate(item.updatedAt)}`
+      : formatLayoutDate(item.updatedAt);
+    meta.append(title, detail);
+
+    const actions = document.createElement('div');
+    actions.className = 'layout-row-actions';
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.title = 'Rename';
+    renameBtn.textContent = '✎';
+    renameBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const next = prompt('Rename layout', item.name);
+      if (!next || next.trim() === item.name) return;
+      const res = await api.renameLayout(item.id, next.trim());
+      if (!res.ok) {
+        toast(res.error || 'Rename failed');
+        return;
+      }
+      if (item.active) state.layoutName = res.name;
+      updateLayoutsLabel();
+      await renderLayoutsList();
+      toast(`Renamed to “${res.name}”`);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.title = 'Delete';
+    delBtn.textContent = '✕';
+    delBtn.classList.add('danger');
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const res = await api.deleteLayout(item.id);
+      if (!res.ok) {
+        toast(res.error || 'Delete failed');
+        return;
+      }
+      await renderLayoutsList();
+      toast('Layout deleted');
+    });
+
+    actions.append(renameBtn, delBtn);
+    row.append(meta, actions);
+
+    row.addEventListener('click', async () => {
+      if (item.active) return;
+      await switchToLayout(item.id);
+    });
+
+    layoutsList.appendChild(row);
+  });
+}
+
+async function applyLayoutProfile(profile) {
+  state.layoutId = profile.id;
+  state.layoutName = profile.name;
+  state.root = normalize(profile.layout);
+  if (state.editMode) setEditMode(false);
+  await ensureAllFolders();
+  render();
+  updateLayoutsLabel();
+}
+
+async function switchToLayout(id) {
+  await flushSave();
+  const res = await api.loadLayoutProfile(id);
+  if (!res.ok) {
+    toast(res.error || 'Could not load layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  await renderLayoutsList();
+  toast(`Loaded “${res.name}”`);
+}
+
+async function openLayoutsDialog() {
+  await renderLayoutsList();
+  layoutsDialog.showModal();
+  wakeUi();
+}
+
+async function createNewLayout() {
+  const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
+  await flushSave();
+  const created = await api.createLayout(name);
+  const res = await api.loadLayoutProfile(created.id);
+  if (!res.ok) {
+    toast(res.error || 'Could not create layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  layoutsNewName.value = '';
+  await renderLayoutsList();
+  toast(`Created “${res.name}”`);
+}
+
+async function saveCurrentLayout() {
+  await flushSave();
+  await renderLayoutsList();
+  toast(`Saved “${state.layoutName}”`);
+}
+
+async function exportCurrentLayout() {
+  if (!state.layoutId) return;
+  await flushSave();
+  const res = await api.exportLayout(state.layoutId);
+  if (res.canceled) return;
+  if (!res.ok) {
+    toast(res.error || 'Export failed');
+    return;
+  }
+  toast('Layout exported');
+}
+
+async function importLayoutFile() {
+  await flushSave();
+  const res = await api.importLayout();
+  if (res.canceled) return;
+  if (!res.ok) {
+    toast(res.error || 'Import failed');
+    return;
+  }
+  await applyLayoutProfile(res);
+  await renderLayoutsList();
+  toast(`Imported “${res.name}”`);
+}
+
+layoutsBtn.addEventListener('click', () => openLayoutsDialog());
+layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
+layoutsCreateBtn.addEventListener('click', () => createNewLayout());
+layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
+layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
+layoutsImportBtn.addEventListener('click', () => importLayoutFile());
+layoutsNewName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') createNewLayout();
+});
+layoutsDialog.addEventListener('click', (e) => {
+  if (e.target === layoutsDialog) layoutsDialog.close();
+});
+
+/* ------------------------------------------------------------------ */
 /* Misc UI                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -873,8 +1064,11 @@ async function boot() {
   state.libraryPath = await api.getLibrary();
   updateLibraryLabel();
 
-  const saved = await api.loadLayout();
-  state.root = normalize(saved);
+  const active = await api.getActiveLayout();
+  state.layoutId = active.id;
+  state.layoutName = active.name;
+  state.root = normalize(active.layout);
+  updateLayoutsLabel();
 
   await ensureAllFolders();
   render();

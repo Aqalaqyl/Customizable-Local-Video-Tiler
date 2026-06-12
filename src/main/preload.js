@@ -21,6 +21,15 @@ contextBridge.exposeInMainWorld('api', {
   loadLayout: () => ipcRenderer.invoke('layout:load'),
   saveLayout: (layout) => ipcRenderer.invoke('layout:save', layout),
 
+  listLayouts: () => ipcRenderer.invoke('layouts:list'),
+  getActiveLayout: () => ipcRenderer.invoke('layouts:active'),
+  createLayout: (name) => ipcRenderer.invoke('layouts:create', { name }),
+  loadLayoutProfile: (id) => ipcRenderer.invoke('layouts:load', { id }),
+  deleteLayout: (id) => ipcRenderer.invoke('layouts:delete', { id }),
+  renameLayout: (id, name) => ipcRenderer.invoke('layouts:rename', { id, name }),
+  exportLayout: (id) => ipcRenderer.invoke('layouts:export', { id }),
+  importLayout: () => ipcRenderer.invoke('layouts:import'),
+
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
   isFullscreen: () => ipcRenderer.invoke('window:isFullscreen'),
   onFullscreenChanged: (callback) => {
