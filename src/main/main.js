@@ -8,6 +8,7 @@ const {
   sortDisplaysInGridOrder,
   arrangeDisplays
 } = require('./displays');
+const { resolveLibraryRoot, pathWithinRoot } = require('./library-paths');
 const {
   listLayoutFiles,
   readLayoutFile,
@@ -444,9 +445,14 @@ ipcMain.handle('library:choose', async () => {
 
 // Ensure a folder exists for a tile. Renames the existing folder when the
 // tile's name changes so the folder on disk always matches the tile name.
-ipcMain.handle('folder:ensure', async (_evt, { name, currentPath }) => {
-  const libraryPath = getLibraryPath();
+// When displayId is set, tile folders live under {library}/displays/{displayId}/.
+ipcMain.handle('folder:ensure', async (_evt, { name, currentPath, displayId }) => {
+  const libraryPath = resolveLibraryRoot(getLibraryPath(), displayId);
   fs.mkdirSync(libraryPath, { recursive: true });
+
+  if (currentPath && !pathWithinRoot(currentPath, libraryPath)) {
+    currentPath = null;
+  }
 
   // Folder already exists at currentPath and the name still matches: keep it.
   const sanitized = sanitizeFolderName(name);
@@ -800,5 +806,7 @@ module.exports = {
   sortDisplaysInGridOrder,
   arrangeDisplays,
   describeDisplay,
-  validateLayoutFile
+  validateLayoutFile,
+  resolveLibraryRoot,
+  pathWithinRoot
 };

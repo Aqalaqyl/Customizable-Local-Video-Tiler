@@ -24,6 +24,7 @@ const state = {
   multiDisplayActive: false,
   layoutId: null,
   layoutName: 'Default',
+  displayId: null,
   displayLabel: ''
 };
 
@@ -128,8 +129,35 @@ function normalize(node) {
 /* Folder syncing                                                      */
 /* ------------------------------------------------------------------ */
 
+function displayLibraryRoot() {
+  if (!state.displayId || !state.libraryPath) return null;
+  const base = state.libraryPath.replace(/[/\\]+$/, '');
+  return `${base}/displays/${state.displayId}`;
+}
+
+function folderUnderDisplayRoot(folderPath) {
+  const root = displayLibraryRoot();
+  if (!root || !folderPath) return false;
+  const norm = (p) => p.replace(/\\/g, '/').toLowerCase();
+  const normalizedRoot = norm(root);
+  const normalizedPath = norm(folderPath);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(`${normalizedRoot}/`)
+  );
+}
+
+function rebindFoldersForDisplay() {
+  if (!state.displayId) return;
+  forEachLeaf(state.root, (leaf) => {
+    if (!folderUnderDisplayRoot(leaf.folderPath)) {
+      leaf.folderPath = null;
+    }
+  });
+}
+
 async function ensureLeafFolder(node) {
-  const res = await api.ensureFolder(node.name, node.folderPath);
+  const res = await api.ensureFolder(node.name, node.folderPath, state.displayId);
   if (res) {
     node.folderPath = res.path;
     node.name = res.name;
@@ -138,6 +166,7 @@ async function ensureLeafFolder(node) {
 }
 
 async function ensureAllFolders() {
+  rebindFoldersForDisplay();
   const leaves = [];
   forEachLeaf(state.root, (l) => leaves.push(l));
   for (const leaf of leaves) {
@@ -505,7 +534,7 @@ function startRename(node, tile, badge) {
     input.remove();
     unlockUi();
     if (save && newName && newName !== node.name) {
-      const res = await api.ensureFolder(newName, node.folderPath);
+      const res = await api.ensureFolder(newName, node.folderPath, state.displayId);
       if (res) {
         node.name = res.name;
         node.folderPath = res.path;
@@ -579,6 +608,8 @@ if (!isPresenter) {
     const chosen = await api.chooseLibrary();
     if (chosen) {
       state.libraryPath = chosen;
+      state.displayId = null;
+      state.displayLabel = '';
       updateLibraryLabel();
       // Re-bind every tile to a folder under the new library root.
       forEachLeaf(state.root, (l) => {
@@ -837,6 +868,8 @@ async function editDisplayLayout(displayId, displayLabel) {
     toast(res.error || 'Could not load layout');
     return;
   }
+  state.displayId = String(displayId);
+  state.displayLabel = displayLabel || '';
   await applyLayoutProfile(res);
   displaysDialog.close();
   toast(`Editing “${res.name}” for ${displayLabel}`);
@@ -1067,6 +1100,8 @@ async function applyLayoutProfile(profile) {
 
 async function switchToLayout(id) {
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const res = await api.loadLayoutProfile(id);
   if (!res.ok) {
     toast(res.error || 'Could not load layout');
@@ -1086,6 +1121,8 @@ async function openLayoutsDialog() {
 async function createNewLayout() {
   const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const created = await api.createLayout(name);
   const res = await api.loadLayoutProfile(created.id);
   if (!res.ok) {
@@ -1118,6 +1155,8 @@ async function exportCurrentLayout() {
 
 async function importLayoutFile() {
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const res = await api.importLayout();
   if (res.canceled) return;
   if (!res.ok) {
@@ -1180,6 +1219,7 @@ function updatePresenterTitle() {
 async function applySyncPayload(payload) {
   if (state.presenterMode && state.editMode) return;
   state.libraryPath = payload.libraryPath;
+  state.displayId = payload.displayId ? String(payload.displayId) : null;
   state.layoutId = payload.layoutId || state.layoutId;
   state.layoutName = payload.layoutName || state.layoutName;
   state.displayLabel = payload.displayLabel || state.displayLabel;
@@ -1256,7 +1296,7 @@ window.__lvt = {
   },
   async rename(id, name) {
     const node = findNode(state.root, id);
-    const res = await api.ensureFolder(name, node.folderPath);
+    const res = await api.ensureFolder(name, node.folderPath, state.displayId);
     if (res) {
       node.name = res.name;
       node.folderPath = res.path;

@@ -142,8 +142,10 @@ You are ready to add media or customize the layout.
 
 ## 5. Choose your library folder
 
-The **library** is the root directory where every tile's folder lives. Each tile
-gets its own subfolder inside the library.
+The **library** is the root directory where tile folders live. Each tile gets its
+own subfolder inside the library. When you present on multiple displays, each
+monitor also gets its own folder under `{library}/displays/{display-id}/`, so
+two screens can use the same tile names without sharing folders.
 
 ### Step 5.1 — Open the library picker
 

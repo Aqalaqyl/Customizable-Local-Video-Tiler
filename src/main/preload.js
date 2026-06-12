@@ -7,8 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   getLibrary: () => ipcRenderer.invoke('library:get'),
   chooseLibrary: () => ipcRenderer.invoke('library:choose'),
 
-  ensureFolder: (name, currentPath) =>
-    ipcRenderer.invoke('folder:ensure', { name, currentPath }),
+  ensureFolder: (name, currentPath, displayId) =>
+    ipcRenderer.invoke('folder:ensure', { name, currentPath, displayId: displayId ?? null }),
   deleteFolder: (folderPath, removeFiles) =>
     ipcRenderer.invoke('folder:delete', { folderPath, removeFiles }),
   listVideos: (folderPath) =>
