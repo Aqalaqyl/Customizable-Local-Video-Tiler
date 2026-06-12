@@ -19,11 +19,12 @@ window managers is required.
 9. [Play and manage media](#9-play-and-manage-media)
 10. [Focus mode — minimalist auto-hiding interface](#10-focus-mode--minimalist-auto-hiding-interface)
 11. [Fullscreen mode](#11-fullscreen-mode)
-12. [Keyboard shortcuts and tips](#12-keyboard-shortcuts-and-tips)
-13. [Where your data is stored](#13-where-your-data-is-stored)
-14. [Example workflow: four-tile monitoring setup](#14-example-workflow-four-tile-monitoring-setup)
-15. [Troubleshooting](#15-troubleshooting)
-16. [For developers: tests and screenshots](#16-for-developers-tests-and-screenshots)
+12. [Multi-display mode (up to 4 monitors)](#12-multi-display-mode-up-to-4-monitors)
+13. [Keyboard shortcuts and tips](#13-keyboard-shortcuts-and-tips)
+14. [Where your data is stored](#14-where-your-data-is-stored)
+15. [Example workflow: four-tile monitoring setup](#15-example-workflow-four-tile-monitoring-setup)
+16. [Troubleshooting](#16-troubleshooting)
+17. [For developers: tests and screenshots](#17-for-developers-tests-and-screenshots)
 
 ---
 
@@ -448,12 +449,74 @@ unchanged.
 
 ---
 
-## 12. Keyboard shortcuts and tips
+## 12. Multi-display mode (up to 4 monitors)
+
+Use multi-display mode when you want a **video wall across several physical
+monitors** — for example four screens in a 2×2 grid, or three screens in a row.
+
+### Step 12.1 — Connect your displays
+
+Plug in the monitors you want to use (up to **four**). Your operating system
+should detect them before you start the app. You can hot-plug displays while the
+app is running; click **🖥 Displays** again to refresh the list.
+
+### Step 12.2 — Open the display picker
+
+Click **🖥 Displays** in the top toolbar. A dialog lists every connected monitor
+with its name and resolution. Check the boxes for the displays you want (maximum
+**four**). By default the first available displays are pre-selected.
+
+### Step 12.3 — Start presenting
+
+Click **Present**. The app:
+
+1. Arranges the selected displays in a grid based on their on-screen positions
+   (side-by-side monitors form a row; stacked monitors form a column; four
+   monitors typically form a 2×2 grid).
+2. Opens a **borderless fullscreen window** on each display.
+3. Splits your tile layout across those windows so together they form one
+   continuous video wall.
+
+The **main window stays open** as your control panel. Edit the layout, add videos,
+or rename tiles there — changes sync to every display automatically.
+
+### Step 12.4 — Stop presenting
+
+Any of these will close the display windows:
+
+- Click **🖥 Displays** → **Stop**
+- Press **`Escape`** while the main window is focused
+
+### Multi-display vs. single-monitor fullscreen
+
+| Mode | Best for |
+| ---- | -------- |
+| **F11 fullscreen** | One monitor, quick distraction-free viewing |
+| **Multi-display** | 2–4 monitor video walls, installations, control rooms |
+
+> **Note:** You cannot use single-window F11 fullscreen and multi-display mode at
+> the same time. Stop multi-display mode first if you want F11 on the main window.
+
+### Recommended multi-display workflow
+
+```
+1. Build your layout in the main window
+2. Add videos to each tile
+3. Click 🖥 Displays → select monitors → Present
+4. Press play on the videos you want (in the main window or on any display)
+5. Let focus mode hide controls on each screen
+6. Press Escape when finished
+```
+
+---
+
+## 13. Keyboard shortcuts and tips
 
 | Action | Shortcut |
 | ------ | -------- |
 | Toggle Edit Layout mode | `Ctrl+E` / `Cmd+E` |
 | Toggle fullscreen | `F11` |
+| Stop multi-display presentation | `Escape` |
 | Horizontal split preview (in Edit mode) | Hold `Shift` while hovering a tile |
 | Confirm rename | `Enter` |
 | Cancel rename | `Escape` |
@@ -474,7 +537,7 @@ unchanged.
 
 ---
 
-## 13. Where your data is stored
+## 14. Where your data is stored
 
 Local Video Tiler keeps two kinds of data on your machine:
 
@@ -511,7 +574,7 @@ setup.
 
 ---
 
-## 14. Example workflow: four-tile monitoring setup
+## 15. Example workflow: four-tile monitoring setup
 
 This walkthrough builds a practical layout for watching four categories of media at
 once.
@@ -549,7 +612,7 @@ Your layout and folder names are saved automatically for the next session.
 
 ---
 
-## 15. Troubleshooting
+## 16. Troubleshooting
 
 ### The app window does not open
 
@@ -608,7 +671,22 @@ from the top.
 
 ---
 
-## 16. For developers: tests and screenshots
+### Multi-display windows do not appear on the right monitors
+
+- Confirm each monitor is enabled in your OS display settings.
+- Open **🖥 Displays** and verify the correct monitors are checked.
+- Drag the main window to the primary display before clicking **Present** if
+  windows open on the wrong screen.
+
+### I selected 4 displays but the layout looks wrong
+
+The app maps displays to a grid using their physical arrangement. If monitors are
+not aligned in your OS settings, the slice order may not match what you expect.
+Re-arrange displays in system settings so they reflect the real-world layout.
+
+---
+
+## 17. For developers: tests and screenshots
 
 ### Run automated tests
 
@@ -658,6 +736,7 @@ npm run dev
 INSTALL     npm install && npm start
 LIBRARY     📁 Library…  →  pick root folder for all tile directories
 FULLSCREEN  ⛶ Fullscreen  (F11)
+MULTI-DISPLAY 🖥 Displays → select up to 4 monitors → Present (Escape to stop)
 FOCUS MODE  Auto-hides UI after 2.5s idle — move mouse to wake
 EDIT        ✎ Edit Layout  (Ctrl/Cmd+E)
 SPLIT       Click = vertical (left|right)   Shift+Click = horizontal (top|bottom)

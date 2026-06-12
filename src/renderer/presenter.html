@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+    />
+    <title>Local Video Tiler — Presenter</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="presenter-mode ui-idle">
+    <div id="stage-viewport">
+      <main id="stage"></main>
+    </div>
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

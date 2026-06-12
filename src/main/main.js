@@ -1,9 +1,13 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
+const {
+  sortDisplaysInGridOrder,
+  arrangeDisplays
+} = require('./displays');
 
 const VIDEO_EXTENSIONS = new Set([
   '.mp4', '.m4v', '.mkv', '.webm', '.ogv', '.ogg', '.mov', '.avi',
@@ -12,6 +16,8 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 let mainWindow = null;
+/** @type {{ displayIds: string[], cols: number, rows: number, windows: import('electron').BrowserWindow[] } | null} */
+let displaySession = null;
 
 /* ------------------------------------------------------------------ */
 /* Config persistence                                                  */
@@ -95,6 +101,150 @@ async function uniqueFolderPath(libraryPath, desiredName, currentPath) {
 
 function isVideoFile(name) {
   return VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
+
+function describeDisplay(d, index) {
+  const primary = screen.getPrimaryDisplay();
+  return {
+    id: String(d.id),
+    label: d.label || `Display ${index + 1}`,
+    bounds: { ...d.bounds },
+    workArea: { ...d.workArea },
+    scaleFactor: d.scaleFactor,
+    primary: d.id === primary.id
+  };
+}
+
+function findDisplayById(id) {
+  return screen.getAllDisplays().find((d) => String(d.id) === String(id)) || null;
+}
+
+function getPresenterPayload(sliceIndex) {
+  const cfg = readConfig();
+  return {
+    layout: cfg.layout || null,
+    libraryPath: getLibraryPath(),
+    sliceIndex,
+    cols: displaySession ? displaySession.cols : 1,
+    rows: displaySession ? displaySession.rows : 1
+  };
+}
+
+function syncPresenterWindow(win) {
+  if (!win || win.isDestroyed() || win.__slice == null) return;
+  win.webContents.send('presenter:sync', getPresenterPayload(win.__slice.index));
+}
+
+function syncAllPresenters() {
+  if (!displaySession) return;
+  for (const win of displaySession.windows) {
+    syncPresenterWindow(win);
+  }
+}
+
+function stopDisplaySession() {
+  if (!displaySession) return { ok: true, active: false };
+  const windows = displaySession.windows.slice();
+  displaySession = null;
+  for (const win of windows) {
+    if (!win.isDestroyed()) win.close();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('display:session-changed', { active: false });
+  }
+  return { ok: true, active: false };
+}
+
+function createPresenterWindow(display, slice) {
+  const win = new BrowserWindow({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+    frame: false,
+    show: false,
+    backgroundColor: '#000000',
+    title: 'Local Video Tiler',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+
+  win.__slice = slice;
+  win.removeMenu();
+
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'presenter.html'), {
+    query: {
+      slice: String(slice.index),
+      cols: String(slice.cols),
+      rows: String(slice.rows)
+    }
+  });
+
+  win.once('ready-to-show', () => {
+    win.setBounds(display.bounds);
+    win.show();
+    win.setFullScreen(true);
+    syncPresenterWindow(win);
+  });
+
+  win.on('closed', () => {
+    if (!displaySession) return;
+    displaySession.windows = displaySession.windows.filter((w) => w !== win);
+    if (displaySession.windows.length === 0) {
+      displaySession = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('display:session-changed', { active: false });
+      }
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('display:session-changed', {
+        active: true,
+        count: displaySession.windows.length,
+        cols: displaySession.cols,
+        rows: displaySession.rows
+      });
+    }
+  });
+
+  return win;
+}
+
+function startDisplaySession(displayIds) {
+  stopDisplaySession();
+
+  const ids = [...new Set(displayIds.map(String))].slice(0, 4);
+  if (ids.length === 0) {
+    return { ok: false, error: 'Select at least one display' };
+  }
+
+  const displays = ids.map(findDisplayById).filter(Boolean);
+  if (displays.length === 0) {
+    return { ok: false, error: 'No matching displays found' };
+  }
+
+  const sorted = sortDisplaysInGridOrder(displays);
+  const { cols, rows } = arrangeDisplays(sorted);
+  const windows = sorted.map((display, index) =>
+    createPresenterWindow(display, { index, cols, rows, total: sorted.length })
+  );
+
+  displaySession = { displayIds: ids, cols, rows, windows };
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+    mainWindow.webContents.send('display:session-changed', {
+      active: true,
+      count: sorted.length,
+      cols,
+      rows,
+      displayIds: ids
+    });
+  }
+
+  return { ok: true, active: true, count: sorted.length, cols, rows, displayIds: ids };
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,7 +425,40 @@ ipcMain.handle('layout:load', async () => {
 ipcMain.handle('layout:save', async (_evt, layout) => {
   const cfg = readConfig();
   cfg.layout = layout;
-  return writeConfig(cfg);
+  const ok = writeConfig(cfg);
+  syncAllPresenters();
+  return ok;
+});
+
+ipcMain.handle('displays:list', async () => {
+  return screen.getAllDisplays().map(describeDisplay);
+});
+
+ipcMain.handle('displays:status', async () => {
+  if (!displaySession) {
+    return { active: false, count: 0, cols: 1, rows: 1, displayIds: [] };
+  }
+  return {
+    active: true,
+    count: displaySession.windows.length,
+    cols: displaySession.cols,
+    rows: displaySession.rows,
+    displayIds: displaySession.displayIds
+  };
+});
+
+ipcMain.handle('displays:start', async (_evt, { displayIds }) => {
+  return startDisplaySession(displayIds || []);
+});
+
+ipcMain.handle('displays:stop', async () => {
+  return stopDisplaySession();
+});
+
+ipcMain.handle('presenter:ready', async (evt) => {
+  const win = BrowserWindow.fromWebContents(evt.sender);
+  syncPresenterWindow(win);
+  return true;
 });
 
 ipcMain.handle('window:toggleFullscreen', async () => {
@@ -295,6 +478,19 @@ ipcMain.handle('window:isFullscreen', async () => {
 
 app.whenReady().then(() => {
   createWindow();
+
+  screen.on('display-added', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('displays:changed');
+    }
+  });
+  screen.on('display-removed', () => {
+    if (displaySession) stopDisplaySession();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('displays:changed');
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -303,3 +499,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', () => {
+  stopDisplaySession();
+});
+
+module.exports = {
+  sortDisplaysInGridOrder,
+  arrangeDisplays,
+  describeDisplay
+};

@@ -29,6 +29,28 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('window:fullscreen-changed', listener);
   },
 
+  listDisplays: () => ipcRenderer.invoke('displays:list'),
+  getDisplayStatus: () => ipcRenderer.invoke('displays:status'),
+  startDisplays: (displayIds) =>
+    ipcRenderer.invoke('displays:start', { displayIds }),
+  stopDisplays: () => ipcRenderer.invoke('displays:stop'),
+  presenterReady: () => ipcRenderer.invoke('presenter:ready'),
+  onPresenterSync: (callback) => {
+    const listener = (_evt, payload) => callback(payload);
+    ipcRenderer.on('presenter:sync', listener);
+    return () => ipcRenderer.removeListener('presenter:sync', listener);
+  },
+  onDisplaySessionChanged: (callback) => {
+    const listener = (_evt, status) => callback(status);
+    ipcRenderer.on('display:session-changed', listener);
+    return () => ipcRenderer.removeListener('display:session-changed', listener);
+  },
+  onDisplaysChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('displays:changed', listener);
+    return () => ipcRenderer.removeListener('displays:changed', listener);
+  },
+
   // Convert an absolute filesystem path to a file:// URL usable by <video src>.
   toFileURL: (filePath) => pathToFileURL(filePath).href
 });
