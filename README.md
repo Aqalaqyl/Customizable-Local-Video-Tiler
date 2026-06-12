@@ -40,6 +40,11 @@ backed by a real folder on disk, so the app doubles as a simple media organizer.
   key to bring controls back.
 - **Fullscreen** – press `F11` or click **Fullscreen** for an edge-to-edge video
   wall on your entire display.
+- **Multi-display** – span your layout across up to **4 monitors** at once. Each
+  display shows its slice of the grid in borderless fullscreen. Works alongside
+  main-window fullscreen (`F11`).
+- **Saved layouts** – create, switch, import, and export named layout profiles.
+  Each profile stores your tile splits, names, and video selections.
 - **Add media easily** – use a tile's *Add videos* button to copy files into its
   folder, or drop files into the folder directly with your file manager.
 - **Persistent** – your layout, tile names, and selected videos are saved and
@@ -122,6 +127,20 @@ mouse or press any key to bring everything back.
 
 Press **`F11`** or click **⛶ Fullscreen** in the toolbar for a distraction-free
 video wall across your entire screen. Press `F11` again to exit.
+
+### 7. Present on multiple displays
+
+Click **🖥 Displays** in the toolbar, select up to four monitors, and click
+**Present**. The app opens a borderless fullscreen window on each display, each
+showing its portion of your layout. Press **`Escape`** or click **Stop** to end
+multi-display mode. You can also press **`F11`** on the main window while
+presenting.
+
+### 8. Manage saved layouts
+
+Click **▤ Layouts** to create new layout profiles, switch between saved layouts,
+or **Import** / **Export** layout files (`.json`). Click **Save** to persist
+changes to the active layout.
 
 ---
 

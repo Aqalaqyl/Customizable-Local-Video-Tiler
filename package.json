@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
-    "test": "electron test/integration.js && electron test/playback.js"
+    "test": "node test/displays.js && node test/layouts-file.js && electron test/integration.js && electron test/playback.js"
   },
   "devDependencies": {
     "electron": "^31.0.0"

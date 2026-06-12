@@ -86,16 +86,18 @@ app.whenReady().then(async () => {
 
     // 4. Rename a tile -> folder on disk is renamed to match.
     const target = leaves[0];
+    const newName = `Rename Test ${Date.now()}`;
     const renamed = await evalInPage(
       win,
-      (id) => window.__lvt.rename(id, 'My Movies'),
-      target.id
+      (id, name) => window.__lvt.rename(id, name),
+      target.id,
+      newName
     );
     const renamedLeaf = renamed.find((l) => l.id === target.id);
-    check('rename updates tile name', renamedLeaf.name === 'My Movies');
+    check('rename updates tile name', renamedLeaf.name === newName);
     check(
       'renamed folder basename matches tile name',
-      path.basename(renamedLeaf.folderPath) === 'My Movies'
+      path.basename(renamedLeaf.folderPath) === newName
     );
     check('renamed folder exists on disk', fs.existsSync(renamedLeaf.folderPath));
     check('old folder no longer exists', !fs.existsSync(target.folderPath));

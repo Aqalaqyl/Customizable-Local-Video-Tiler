@@ -1,9 +1,24 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
+const {
+  sortDisplaysInGridOrder,
+  arrangeDisplays
+} = require('./displays');
+const {
+  listLayoutFiles,
+  readLayoutFile,
+  getActiveLayout,
+  saveActiveLayout,
+  createLayout,
+  setActiveLayout,
+  deleteLayout,
+  importLayoutData,
+  validateLayoutFile
+} = require('./layouts');
 
 const VIDEO_EXTENSIONS = new Set([
   '.mp4', '.m4v', '.mkv', '.webm', '.ogv', '.ogg', '.mov', '.avi',
@@ -12,6 +27,8 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 let mainWindow = null;
+/** @type {{ displayIds: string[], cols: number, rows: number, windows: import('electron').BrowserWindow[] } | null} */
+let displaySession = null;
 
 /* ------------------------------------------------------------------ */
 /* Config persistence                                                  */
@@ -51,8 +68,35 @@ function writeConfig(cfg) {
   }
 }
 
+function userDataPath() {
+  return app.getPath('userData');
+}
+
+function persistConfig(cfg) {
+  writeConfig(cfg);
+  return cfg;
+}
+
+function readConfigMigrated() {
+  return migrateConfigStorage(readConfig());
+}
+
+function migrateConfigStorage(cfg) {
+  const { cfg: migrated } = getActiveLayout(userDataPath(), cfg);
+  if (migrated.activeLayoutId !== cfg.activeLayoutId || cfg.layout) {
+    persistConfig(migrated);
+  }
+  return migrated;
+}
+
+function getActiveLayoutTree() {
+  const cfg = readConfigMigrated();
+  const { entry } = getActiveLayout(userDataPath(), cfg);
+  return entry ? entry.layout : null;
+}
+
 function getLibraryPath() {
-  const cfg = readConfig();
+  const cfg = readConfigMigrated();
   const p = cfg.libraryPath || defaultLibraryPath();
   try {
     fs.mkdirSync(p, { recursive: true });
@@ -95,6 +139,148 @@ async function uniqueFolderPath(libraryPath, desiredName, currentPath) {
 
 function isVideoFile(name) {
   return VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
+
+function describeDisplay(d, index) {
+  const primary = screen.getPrimaryDisplay();
+  return {
+    id: String(d.id),
+    label: d.label || `Display ${index + 1}`,
+    bounds: { ...d.bounds },
+    workArea: { ...d.workArea },
+    scaleFactor: d.scaleFactor,
+    primary: d.id === primary.id
+  };
+}
+
+function findDisplayById(id) {
+  return screen.getAllDisplays().find((d) => String(d.id) === String(id)) || null;
+}
+
+function getPresenterPayload(sliceIndex) {
+  return {
+    layout: getActiveLayoutTree(),
+    libraryPath: getLibraryPath(),
+    sliceIndex,
+    cols: displaySession ? displaySession.cols : 1,
+    rows: displaySession ? displaySession.rows : 1
+  };
+}
+
+function syncPresenterWindow(win) {
+  if (!win || win.isDestroyed() || win.__slice == null) return;
+  win.webContents.send('presenter:sync', getPresenterPayload(win.__slice.index));
+}
+
+function syncAllPresenters() {
+  if (!displaySession) return;
+  for (const win of displaySession.windows) {
+    syncPresenterWindow(win);
+  }
+}
+
+function stopDisplaySession() {
+  if (!displaySession) return { ok: true, active: false };
+  const windows = displaySession.windows.slice();
+  displaySession = null;
+  for (const win of windows) {
+    if (!win.isDestroyed()) win.close();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('display:session-changed', { active: false });
+  }
+  return { ok: true, active: false };
+}
+
+function createPresenterWindow(display, slice) {
+  const win = new BrowserWindow({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+    frame: false,
+    show: false,
+    backgroundColor: '#000000',
+    title: 'Local Video Tiler',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+
+  win.__slice = slice;
+  win.removeMenu();
+
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'presenter.html'), {
+    query: {
+      slice: String(slice.index),
+      cols: String(slice.cols),
+      rows: String(slice.rows)
+    }
+  });
+
+  win.once('ready-to-show', () => {
+    win.setBounds(display.bounds);
+    win.show();
+    win.setFullScreen(true);
+    syncPresenterWindow(win);
+  });
+
+  win.on('closed', () => {
+    if (!displaySession) return;
+    displaySession.windows = displaySession.windows.filter((w) => w !== win);
+    if (displaySession.windows.length === 0) {
+      displaySession = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('display:session-changed', { active: false });
+      }
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('display:session-changed', {
+        active: true,
+        count: displaySession.windows.length,
+        cols: displaySession.cols,
+        rows: displaySession.rows
+      });
+    }
+  });
+
+  return win;
+}
+
+function startDisplaySession(displayIds) {
+  stopDisplaySession();
+
+  const ids = [...new Set(displayIds.map(String))].slice(0, 4);
+  if (ids.length === 0) {
+    return { ok: false, error: 'Select at least one display' };
+  }
+
+  const displays = ids.map(findDisplayById).filter(Boolean);
+  if (displays.length === 0) {
+    return { ok: false, error: 'No matching displays found' };
+  }
+
+  const sorted = sortDisplaysInGridOrder(displays);
+  const { cols, rows } = arrangeDisplays(sorted);
+  const windows = sorted.map((display, index) =>
+    createPresenterWindow(display, { index, cols, rows, total: sorted.length })
+  );
+
+  displaySession = { displayIds: ids, cols, rows, windows };
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('display:session-changed', {
+      active: true,
+      count: sorted.length,
+      cols,
+      rows,
+      displayIds: ids
+    });
+  }
+
+  return { ok: true, active: true, count: sorted.length, cols, rows, displayIds: ids };
 }
 
 /* ------------------------------------------------------------------ */
@@ -161,9 +347,9 @@ ipcMain.handle('library:choose', async () => {
   });
   if (result.canceled || !result.filePaths.length) return null;
   const chosen = result.filePaths[0];
-  const cfg = readConfig();
+  const cfg = readConfigMigrated();
   cfg.libraryPath = chosen;
-  writeConfig(cfg);
+  persistConfig(cfg);
   return chosen;
 });
 
@@ -268,14 +454,177 @@ ipcMain.handle('videos:add', async (_evt, { folderPath }) => {
 });
 
 ipcMain.handle('layout:load', async () => {
-  const cfg = readConfig();
-  return cfg.layout || null;
+  return getActiveLayoutTree();
 });
 
 ipcMain.handle('layout:save', async (_evt, layout) => {
-  const cfg = readConfig();
-  cfg.layout = layout;
-  return writeConfig(cfg);
+  const cfg = readConfigMigrated();
+  saveActiveLayout(userDataPath(), cfg, layout);
+  syncAllPresenters();
+  return true;
+});
+
+ipcMain.handle('layouts:list', async () => {
+  const cfg = readConfigMigrated();
+  const items = listLayoutFiles(userDataPath());
+  return items.map((e) => ({
+    id: e.id,
+    name: e.name,
+    updatedAt: e.updatedAt,
+    active: e.id === cfg.activeLayoutId
+  }));
+});
+
+ipcMain.handle('layouts:active', async () => {
+  const cfg = readConfigMigrated();
+  const { entry } = getActiveLayout(userDataPath(), cfg);
+  return {
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout,
+    updatedAt: entry.updatedAt
+  };
+});
+
+ipcMain.handle('layouts:create', async (_evt, { name }) => {
+  const entry = createLayout(userDataPath(), name);
+  return { id: entry.id, name: entry.name, layout: entry.layout };
+});
+
+ipcMain.handle('layouts:load', async (_evt, { id }) => {
+  const cfg = readConfigMigrated();
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const next = setActiveLayout(userDataPath(), cfg, id);
+  persistConfig(next);
+  syncAllPresenters();
+  return {
+    ok: true,
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout,
+    updatedAt: entry.updatedAt
+  };
+});
+
+ipcMain.handle('layouts:delete', async (_evt, { id }) => {
+  const cfg = readConfigMigrated();
+  const all = listLayoutFiles(userDataPath());
+  if (all.length <= 1) {
+    return { ok: false, error: 'Cannot delete the only saved layout' };
+  }
+  if (id === cfg.activeLayoutId) {
+    return { ok: false, error: 'Switch to another layout before deleting this one' };
+  }
+  if (!deleteLayout(userDataPath(), id)) {
+    return { ok: false, error: 'Layout not found' };
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('layouts:rename', async (_evt, { id, name }) => {
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const trimmed = String(name || '').trim().slice(0, 120);
+  if (!trimmed) return { ok: false, error: 'Name is required' };
+  const { writeLayoutFile } = require('./layouts');
+  writeLayoutFile(userDataPath(), {
+    id,
+    name: trimmed,
+    updatedAt: new Date().toISOString(),
+    layout: entry.layout
+  });
+  return { ok: true, id, name: trimmed };
+});
+
+ipcMain.handle('layouts:export', async (_evt, { id }) => {
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export layout',
+    defaultPath: `${entry.name.replace(/[<>:"/\\|?*]/g, '_')}.lvt-layout.json`,
+    filters: [
+      { name: 'Layout files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  const payload = {
+    version: 1,
+    name: entry.name,
+    exportedAt: new Date().toISOString(),
+    layout: entry.layout
+  };
+  await fsp.writeFile(result.filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return { ok: true, path: result.filePath };
+});
+
+ipcMain.handle('layouts:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import layout',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Layout files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return { ok: false, canceled: true };
+  }
+  const filePath = result.filePaths[0];
+  let raw;
+  try {
+    raw = JSON.parse(await fsp.readFile(filePath, 'utf8'));
+  } catch (e) {
+    return { ok: false, error: 'Invalid layout file' };
+  }
+  if (!validateLayoutFile(raw)) {
+    return { ok: false, error: 'Layout file is missing a valid layout tree' };
+  }
+  const fallback = path.basename(filePath, path.extname(filePath));
+  const entry = importLayoutData(userDataPath(), raw, fallback);
+  if (!entry) return { ok: false, error: 'Could not import layout' };
+  const cfg = readConfigMigrated();
+  const next = setActiveLayout(userDataPath(), cfg, entry.id);
+  persistConfig(next);
+  syncAllPresenters();
+  return {
+    ok: true,
+    id: entry.id,
+    name: entry.name,
+    layout: entry.layout
+  };
+});
+
+ipcMain.handle('displays:list', async () => {
+  return screen.getAllDisplays().map(describeDisplay);
+});
+
+ipcMain.handle('displays:status', async () => {
+  if (!displaySession) {
+    return { active: false, count: 0, cols: 1, rows: 1, displayIds: [] };
+  }
+  return {
+    active: true,
+    count: displaySession.windows.length,
+    cols: displaySession.cols,
+    rows: displaySession.rows,
+    displayIds: displaySession.displayIds
+  };
+});
+
+ipcMain.handle('displays:start', async (_evt, { displayIds }) => {
+  return startDisplaySession(displayIds || []);
+});
+
+ipcMain.handle('displays:stop', async () => {
+  return stopDisplaySession();
+});
+
+ipcMain.handle('presenter:ready', async (evt) => {
+  const win = BrowserWindow.fromWebContents(evt.sender);
+  syncPresenterWindow(win);
+  return true;
 });
 
 ipcMain.handle('window:toggleFullscreen', async () => {
@@ -295,6 +644,19 @@ ipcMain.handle('window:isFullscreen', async () => {
 
 app.whenReady().then(() => {
   createWindow();
+
+  screen.on('display-added', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('displays:changed');
+    }
+  });
+  screen.on('display-removed', () => {
+    if (displaySession) stopDisplaySession();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('displays:changed');
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -303,3 +665,14 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', () => {
+  stopDisplaySession();
+});
+
+module.exports = {
+  sortDisplaysInGridOrder,
+  arrangeDisplays,
+  describeDisplay,
+  validateLayoutFile
+};

@@ -19,11 +19,13 @@ window managers is required.
 9. [Play and manage media](#9-play-and-manage-media)
 10. [Focus mode — minimalist auto-hiding interface](#10-focus-mode--minimalist-auto-hiding-interface)
 11. [Fullscreen mode](#11-fullscreen-mode)
-12. [Keyboard shortcuts and tips](#12-keyboard-shortcuts-and-tips)
-13. [Where your data is stored](#13-where-your-data-is-stored)
-14. [Example workflow: four-tile monitoring setup](#14-example-workflow-four-tile-monitoring-setup)
-15. [Troubleshooting](#15-troubleshooting)
-16. [For developers: tests and screenshots](#16-for-developers-tests-and-screenshots)
+12. [Multi-display mode (up to 4 monitors)](#12-multi-display-mode-up-to-4-monitors)
+13. [Saved layouts — create, import, and export](#13-saved-layouts--create-import-and-export)
+14. [Keyboard shortcuts and tips](#14-keyboard-shortcuts-and-tips)
+15. [Where your data is stored](#15-where-your-data-is-stored)
+16. [Example workflow: four-tile monitoring setup](#16-example-workflow-four-tile-monitoring-setup)
+17. [Troubleshooting](#17-troubleshooting)
+18. [For developers: tests and screenshots](#18-for-developers-tests-and-screenshots)
 
 ---
 
@@ -448,12 +450,127 @@ unchanged.
 
 ---
 
-## 12. Keyboard shortcuts and tips
+## 12. Multi-display mode (up to 4 monitors)
+
+Use multi-display mode when you want a **video wall across several physical
+monitors** — for example four screens in a 2×2 grid, or three screens in a row.
+
+### Step 12.1 — Connect your displays
+
+Plug in the monitors you want to use (up to **four**). Your operating system
+should detect them before you start the app. You can hot-plug displays while the
+app is running; click **🖥 Displays** again to refresh the list.
+
+### Step 12.2 — Open the display picker
+
+Click **🖥 Displays** in the top toolbar. A dialog lists every connected monitor
+with its name and resolution. Check the boxes for the displays you want (maximum
+**four**). By default the first available displays are pre-selected.
+
+### Step 12.3 — Start presenting
+
+Click **Present**. The app:
+
+1. Arranges the selected displays in a grid based on their on-screen positions
+   (side-by-side monitors form a row; stacked monitors form a column; four
+   monitors typically form a 2×2 grid).
+2. Opens a **borderless fullscreen window** on each display.
+3. Splits your tile layout across those windows so together they form one
+   continuous video wall.
+
+The **main window stays open** as your control panel. Edit the layout, add videos,
+or rename tiles there — changes sync to every display automatically.
+
+### Step 12.4 — Stop presenting
+
+Any of these will close the display windows:
+
+- Click **🖥 Displays** → **Stop**
+- Press **`Escape`** while the main window is focused
+
+### Multi-display vs. single-monitor fullscreen
+
+| Mode | Best for |
+| ---- | -------- |
+| **F11 fullscreen** | Maximize the main control window on one monitor |
+| **Multi-display** | 2–4 monitor video walls, installations, control rooms |
+
+> **Tip:** You can use **both at once** — press **F11** on the main window while
+> presenter windows are open on other displays. The main window goes fullscreen on
+> its monitor while external displays keep showing their slices.
+
+### Recommended multi-display workflow
+
+```
+1. Build your layout in the main window
+2. Add videos to each tile
+3. Click 🖥 Displays → select monitors → Present
+4. Press play on the videos you want (in the main window or on any display)
+5. Let focus mode hide controls on each screen
+6. Press Escape when finished
+```
+
+---
+
+## 13. Saved layouts — create, import, and export
+
+A **layout profile** stores your tile splits, sizes, tile names, folder bindings,
+and last-selected video per tile. You can maintain several profiles and switch
+between them.
+
+### Step 13.1 — Open the layouts manager
+
+Click **▤ Layouts** in the toolbar. The button label shows the **active layout
+name**. The dialog lists every saved profile; the active one is highlighted.
+
+### Step 13.2 — Save your current work
+
+After editing a layout, click **Save** in the layouts dialog (or just keep
+working — changes auto-save to the active profile after a short delay).
+
+### Step 13.3 — Create a new layout
+
+1. Type a name in **New layout name** (e.g. `Sports wall` or `Podcast grid`).
+2. Click **New layout**.
+
+A fresh single-tile layout is created and activated. Build it independently from
+your other profiles.
+
+### Step 13.4 — Switch layouts
+
+Click any layout in the list to load it. The app saves your current layout first,
+then restores the selected profile.
+
+### Step 13.5 — Export a layout
+
+1. Load the layout you want to share or back up.
+2. Open **▤ Layouts** → **Export**.
+3. Choose where to save the `.json` file.
+
+Exported files include tile structure and names. Folder paths are omitted so the
+file is portable across computers.
+
+### Step 13.6 — Import a layout
+
+1. Open **▤ Layouts** → **Import**.
+2. Select a `.json` layout file (exported from this app or compatible format).
+3. The imported profile is added and activated. Tile folders are created under
+   your current library.
+
+### Rename or delete
+
+Use **✎** or **✕** on each row in the layouts list. You cannot delete the only
+remaining profile or delete the layout that is currently active (switch first).
+
+---
+
+## 14. Keyboard shortcuts and tips
 
 | Action | Shortcut |
 | ------ | -------- |
 | Toggle Edit Layout mode | `Ctrl+E` / `Cmd+E` |
 | Toggle fullscreen | `F11` |
+| Stop multi-display presentation | `Escape` |
 | Horizontal split preview (in Edit mode) | Hold `Shift` while hovering a tile |
 | Confirm rename | `Enter` |
 | Cancel rename | `Escape` |
@@ -474,7 +591,7 @@ unchanged.
 
 ---
 
-## 13. Where your data is stored
+## 15. Where your data is stored
 
 Local Video Tiler keeps two kinds of data on your machine:
 
@@ -490,7 +607,7 @@ Default location:
 
 Each tile is a subfolder inside this directory, named after the tile.
 
-### App configuration (layout + settings)
+### App configuration (settings + active layout id)
 
 Electron stores a `config.json` file in the app's user-data directory:
 
@@ -500,18 +617,25 @@ Electron stores a `config.json` file in the app's user-data directory:
 | macOS | `~/Library/Application Support/local-video-tiler/config.json` |
 | Linux | `~/.config/local-video-tiler/config.json` |
 
-This file contains:
+This file contains your `libraryPath` and which saved layout is active.
 
-- Your chosen `libraryPath`
-- The full layout tree (splits, ratios, tile names, folder paths)
-- The last selected video per tile
+### Saved layout profiles
 
-You can back up both the library folder and `config.json` to preserve your entire
-setup.
+Individual layout files live in a `layouts/` folder next to `config.json`:
+
+| OS | Typical path |
+| -- | ------------ |
+| Windows | `%APPDATA%\local-video-tiler\layouts\` |
+| macOS | `~/Library/Application Support/local-video-tiler/layouts/` |
+| Linux | `~/.config/local-video-tiler/layouts/` |
+
+Each file is a `.json` profile with the layout tree, tile names, folder paths,
+and video selections. Use **Export** in the app to copy a profile anywhere, or
+back up the whole `layouts/` folder.
 
 ---
 
-## 14. Example workflow: four-tile monitoring setup
+## 16. Example workflow: four-tile monitoring setup
 
 This walkthrough builds a practical layout for watching four categories of media at
 once.
@@ -549,7 +673,7 @@ Your layout and folder names are saved automatically for the next session.
 
 ---
 
-## 15. Troubleshooting
+## 17. Troubleshooting
 
 ### The app window does not open
 
@@ -608,7 +732,22 @@ from the top.
 
 ---
 
-## 16. For developers: tests and screenshots
+### Multi-display windows do not appear on the right monitors
+
+- Confirm each monitor is enabled in your OS display settings.
+- Open **🖥 Displays** and verify the correct monitors are checked.
+- Drag the main window to the primary display before clicking **Present** if
+  windows open on the wrong screen.
+
+### I selected 4 displays but the layout looks wrong
+
+The app maps displays to a grid using their physical arrangement. If monitors are
+not aligned in your OS settings, the slice order may not match what you expect.
+Re-arrange displays in system settings so they reflect the real-world layout.
+
+---
+
+## 18. For developers: tests and screenshots
 
 ### Run automated tests
 
@@ -657,7 +796,9 @@ npm run dev
 ```
 INSTALL     npm install && npm start
 LIBRARY     📁 Library…  →  pick root folder for all tile directories
-FULLSCREEN  ⛶ Fullscreen  (F11)
+FULLSCREEN  ⛶ Fullscreen  (F11) — works with multi-display
+MULTI-DISPLAY 🖥 Displays → select up to 4 monitors → Present (Escape to stop)
+LAYOUTS     ▤ Layouts → create / switch / import / export profiles
 FOCUS MODE  Auto-hides UI after 2.5s idle — move mouse to wake
 EDIT        ✎ Edit Layout  (Ctrl/Cmd+E)
 SPLIT       Click = vertical (left|right)   Shift+Click = horizontal (top|bottom)

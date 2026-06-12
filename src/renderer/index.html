@@ -29,6 +29,14 @@
           <span class="ico">📁</span>
           <span id="library-label">Library…</span>
         </button>
+        <button id="layouts-btn" class="btn ghost" title="Saved layouts — create, import, export">
+          <span class="ico">▤</span>
+          <span id="layouts-label">Layouts</span>
+        </button>
+        <button id="displays-btn" class="btn ghost" title="Present on up to 4 displays">
+          <span class="ico">🖥</span>
+          <span id="displays-label">Displays</span>
+        </button>
         <button id="fullscreen-btn" class="btn ghost" title="Toggle fullscreen (F11)">
           <span class="ico">⛶</span>
           <span id="fullscreen-label">Fullscreen</span>
@@ -42,6 +50,49 @@
     <main id="stage"></main>
 
     <div id="wake-hint" aria-hidden="true">Move mouse or press a key to show controls</div>
+
+    <dialog id="layouts-dialog" class="app-dialog layouts-dialog">
+      <div class="dialog-head">
+        <h2>Saved layouts</h2>
+        <p class="dialog-sub">
+          Create, switch, import, or export layout profiles. Each layout remembers
+          your tile splits, names, and video selections.
+        </p>
+      </div>
+      <div id="layouts-list" class="layouts-list"></div>
+      <div class="layouts-new">
+        <input
+          id="layouts-new-name"
+          class="layouts-name-input"
+          type="text"
+          placeholder="New layout name"
+          spellcheck="false"
+        />
+        <button id="layouts-create" class="btn ghost" type="button">New layout</button>
+      </div>
+      <div class="dialog-actions layouts-actions">
+        <button id="layouts-save" class="btn" type="button">Save</button>
+        <button id="layouts-export" class="btn ghost" type="button">Export</button>
+        <button id="layouts-import" class="btn ghost" type="button">Import</button>
+        <button id="layouts-close" class="btn ghost" type="button">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="displays-dialog" class="app-dialog displays-dialog">
+      <div class="dialog-head">
+        <h2>Multi-display presentation</h2>
+        <p class="dialog-sub">
+          Span your layout across up to <b>4 monitors</b>. Each display shows its
+          slice of the grid fullscreen. Works together with main-window fullscreen.
+        </p>
+      </div>
+      <div id="displays-list" class="displays-list"></div>
+      <div class="dialog-actions">
+        <button id="displays-cancel" class="btn ghost" type="button">Cancel</button>
+        <button id="displays-start" class="btn" type="button">Present</button>
+        <button id="displays-stop" class="btn danger hidden" type="button">Stop</button>
+      </div>
+    </dialog>
 
     <div id="toast" class="toast hidden"></div>
 

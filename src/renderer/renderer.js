@@ -18,7 +18,14 @@ const state = {
   root: null,
   libraryPath: '',
   editMode: false,
-  shiftHeld: false
+  shiftHeld: false,
+  presenterMode: false,
+  sliceIndex: 0,
+  sliceCols: 1,
+  sliceRows: 1,
+  multiDisplayActive: false,
+  layoutId: null,
+  layoutName: 'Default'
 };
 
 const stage = document.getElementById('stage');
@@ -28,6 +35,23 @@ const libraryBtn = document.getElementById('library-btn');
 const libraryLabel = document.getElementById('library-label');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
 const fullscreenLabel = document.getElementById('fullscreen-label');
+const displaysBtn = document.getElementById('displays-btn');
+const displaysLabel = document.getElementById('displays-label');
+const displaysDialog = document.getElementById('displays-dialog');
+const displaysList = document.getElementById('displays-list');
+const displaysStartBtn = document.getElementById('displays-start');
+const displaysStopBtn = document.getElementById('displays-stop');
+const displaysCancelBtn = document.getElementById('displays-cancel');
+const layoutsBtn = document.getElementById('layouts-btn');
+const layoutsLabel = document.getElementById('layouts-label');
+const layoutsDialog = document.getElementById('layouts-dialog');
+const layoutsList = document.getElementById('layouts-list');
+const layoutsNewName = document.getElementById('layouts-new-name');
+const layoutsCreateBtn = document.getElementById('layouts-create');
+const layoutsSaveBtn = document.getElementById('layouts-save');
+const layoutsExportBtn = document.getElementById('layouts-export');
+const layoutsImportBtn = document.getElementById('layouts-import');
+const layoutsCloseBtn = document.getElementById('layouts-close');
 const toastEl = document.getElementById('toast');
 
 const IDLE_MS = 2500;
@@ -44,10 +68,15 @@ let activeOverlay = null;
 
 let saveTimer = null;
 function scheduleSave() {
+  if (state.presenterMode) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    api.saveLayout(serialize(state.root));
-  }, 250);
+  saveTimer = setTimeout(() => flushSave(), 250);
+}
+
+async function flushSave() {
+  if (state.presenterMode) return;
+  clearTimeout(saveTimer);
+  await api.saveLayout(serialize(state.root));
 }
 
 function serialize(node) {
@@ -117,6 +146,26 @@ async function ensureAllFolders() {
 function render() {
   stage.innerHTML = '';
   stage.appendChild(renderNode(state.root));
+  applyViewportSlice();
+}
+
+function applyViewportSlice() {
+  if (!state.presenterMode) return;
+  const viewport = document.getElementById('stage-viewport');
+  if (!viewport) return;
+
+  const cols = state.sliceCols;
+  const rows = state.sliceRows;
+  const col = state.sliceIndex % cols;
+  const row = Math.floor(state.sliceIndex / cols);
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  stage.style.width = `${cols * vw}px`;
+  stage.style.height = `${rows * vh}px`;
+  stage.style.transform = `translate(${-col * vw}px, ${-row * vh}px)`;
+  viewport.style.width = `${vw}px`;
+  viewport.style.height = `${vh}px`;
 }
 
 function renderNode(node) {
@@ -165,17 +214,24 @@ function renderLeaf(node) {
   empty.innerHTML =
     '<div class="big">🎬</div>' +
     '<div>No videos in this tile yet</div>';
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn';
-  addBtn.textContent = '＋ Add videos';
-  addBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    addVideos(node, tile);
-  });
-  empty.appendChild(addBtn);
+  if (!state.presenterMode) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn';
+    addBtn.textContent = '＋ Add videos';
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addVideos(node, tile);
+    });
+    empty.appendChild(addBtn);
+  }
   media.appendChild(empty);
 
   tile.appendChild(media);
+
+  if (state.presenterMode) {
+    loadPlaylist(node, tile, null, video, empty);
+    return tile;
+  }
 
   // --- playlist ---
   const playlist = document.createElement('div');
@@ -250,42 +306,46 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
   const files = await api.listVideos(node.folderPath);
   node._files = files;
 
-  plBody.innerHTML = '';
+  if (plBody) plBody.innerHTML = '';
   if (!files.length) {
     empty.style.display = 'flex';
     video.style.display = 'none';
-    const e = document.createElement('div');
-    e.className = 'playlist-empty';
-    e.textContent = 'This folder has no media files.';
-    plBody.appendChild(e);
+    if (plBody) {
+      const e = document.createElement('div');
+      e.className = 'playlist-empty';
+      e.textContent = 'This folder has no media files.';
+      plBody.appendChild(e);
+    }
     return;
   }
 
   empty.style.display = 'none';
   video.style.display = 'block';
 
-  files.forEach((file) => {
-    const item = document.createElement('div');
-    item.className = 'playlist-item';
-    item.dataset.path = file.path;
-    item.innerHTML = '<span class="pi-ico">▸</span>';
-    const label = document.createElement('span');
-    label.className = 'pi-name';
-    label.textContent = file.name;
-    item.appendChild(label);
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      playFile(node, tile, video, file.path);
+  if (plBody) {
+    files.forEach((file) => {
+      const item = document.createElement('div');
+      item.className = 'playlist-item';
+      item.dataset.path = file.path;
+      item.innerHTML = '<span class="pi-ico">▸</span>';
+      const label = document.createElement('span');
+      label.className = 'pi-name';
+      label.textContent = file.name;
+      item.appendChild(label);
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        playFile(node, tile, video, file.path);
+      });
+      plBody.appendChild(item);
     });
-    plBody.appendChild(item);
-  });
+  }
 
   // Restore previously selected video, or default to the first one.
   const restore =
     node.currentVideo && files.some((f) => f.path === node.currentVideo)
       ? node.currentVideo
       : files[0].path;
-  setActive(node, tile, video, restore, false);
+  setActive(node, tile, video, restore, state.presenterMode);
 }
 
 function setActive(node, tile, video, filePath, autoplay) {
@@ -561,6 +621,10 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     toggleFullscreen();
   }
+  if (e.key === 'Escape' && state.multiDisplayActive) {
+    e.preventDefault();
+    stopMultiDisplay();
+  }
 });
 
 window.addEventListener('keyup', (e) => {
@@ -638,6 +702,319 @@ async function toggleFullscreen() {
 fullscreenBtn.addEventListener('click', () => toggleFullscreen());
 
 /* ------------------------------------------------------------------ */
+/* Multi-display (up to 4 monitors)                                    */
+/* ------------------------------------------------------------------ */
+
+let availableDisplays = [];
+let selectedDisplayIds = new Set();
+
+function formatDisplaySize(bounds) {
+  return `${bounds.width}×${bounds.height}`;
+}
+
+function renderDisplaysList() {
+  displaysList.innerHTML = '';
+  if (!availableDisplays.length) {
+    displaysList.innerHTML =
+      '<p class="displays-empty">No displays detected.</p>';
+    displaysStartBtn.disabled = true;
+    return;
+  }
+
+  displaysStartBtn.disabled = selectedDisplayIds.size === 0;
+
+  availableDisplays.forEach((d) => {
+    const row = document.createElement('label');
+    row.className = 'display-row';
+    const checked = selectedDisplayIds.has(d.id);
+    if (checked) row.classList.add('selected');
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = d.id;
+    input.checked = checked;
+    input.addEventListener('change', () => {
+      if (input.checked) {
+        if (selectedDisplayIds.size >= 4) {
+          input.checked = false;
+          toast('You can use at most 4 displays at once');
+          return;
+        }
+        selectedDisplayIds.add(d.id);
+      } else {
+        selectedDisplayIds.delete(d.id);
+      }
+      row.classList.toggle('selected', input.checked);
+      displaysStartBtn.disabled = selectedDisplayIds.size === 0;
+    });
+
+    const meta = document.createElement('div');
+    meta.className = 'display-meta';
+    const title = document.createElement('div');
+    title.className = 'display-title';
+    title.textContent = d.label;
+    const detail = document.createElement('div');
+    detail.className = 'display-detail';
+    detail.textContent = `${formatDisplaySize(d.bounds)}${d.primary ? ' · Primary' : ''}`;
+    meta.append(title, detail);
+
+    row.append(input, meta);
+    displaysList.appendChild(row);
+  });
+}
+
+async function refreshDisplaysList() {
+  availableDisplays = await api.listDisplays();
+  const status = await api.getDisplayStatus();
+  if (status.active && status.displayIds.length) {
+    selectedDisplayIds = new Set(status.displayIds);
+  } else if (selectedDisplayIds.size === 0) {
+    selectedDisplayIds = new Set(
+      availableDisplays.slice(0, Math.min(4, availableDisplays.length)).map((d) => d.id)
+    );
+  } else {
+    selectedDisplayIds = new Set(
+      [...selectedDisplayIds].filter((id) => availableDisplays.some((d) => d.id === id))
+    );
+  }
+  renderDisplaysList();
+  updateDisplaysLabel(status);
+}
+
+function updateDisplaysLabel(status) {
+  state.multiDisplayActive = !!status.active;
+  displaysBtn.classList.toggle('active', status.active);
+  if (status.active) {
+    displaysLabel.textContent = `${status.count} Display${status.count === 1 ? '' : 's'}`;
+    displaysBtn.title = 'Multi-display presentation active — click to manage';
+    displaysStartBtn.classList.add('hidden');
+    displaysStopBtn.classList.remove('hidden');
+  } else {
+    displaysLabel.textContent = 'Displays';
+    displaysBtn.title = 'Present on up to 4 displays';
+    displaysStartBtn.classList.remove('hidden');
+    displaysStopBtn.classList.add('hidden');
+  }
+}
+
+async function openDisplaysDialog() {
+  await refreshDisplaysList();
+  displaysDialog.showModal();
+  wakeUi();
+}
+
+async function startMultiDisplay() {
+  const ids = [...selectedDisplayIds];
+  if (!ids.length) {
+    toast('Select at least one display');
+    return;
+  }
+  const res = await api.startDisplays(ids);
+  if (!res.ok) {
+    toast(res.error || 'Could not start multi-display mode');
+    return;
+  }
+  updateDisplaysLabel(res);
+  displaysDialog.close();
+  toast(`Presenting on ${res.count} display${res.count === 1 ? '' : 's'}`);
+}
+
+async function stopMultiDisplay() {
+  const res = await api.stopDisplays();
+  updateDisplaysLabel(res);
+  displaysDialog.close();
+  toast('Multi-display presentation stopped');
+}
+
+displaysBtn.addEventListener('click', () => openDisplaysDialog());
+displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
+displaysStartBtn.addEventListener('click', () => startMultiDisplay());
+displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
+
+displaysDialog.addEventListener('click', (e) => {
+  if (e.target === displaysDialog) displaysDialog.close();
+});
+
+/* ------------------------------------------------------------------ */
+/* Saved layouts — create, load, import, export                        */
+/* ------------------------------------------------------------------ */
+
+function updateLayoutsLabel() {
+  layoutsLabel.textContent = state.layoutName || 'Layouts';
+  layoutsBtn.title = `Current layout: ${state.layoutName}`;
+}
+
+function formatLayoutDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString();
+  } catch (e) {
+    return '';
+  }
+}
+
+async function renderLayoutsList() {
+  const items = await api.listLayouts();
+  layoutsList.innerHTML = '';
+  if (!items.length) {
+    layoutsList.innerHTML = '<p class="displays-empty">No saved layouts yet.</p>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'layout-row' + (item.active ? ' active' : '');
+
+    const meta = document.createElement('div');
+    meta.className = 'layout-meta';
+    const title = document.createElement('div');
+    title.className = 'layout-title';
+    title.textContent = item.name;
+    const detail = document.createElement('div');
+    detail.className = 'layout-detail';
+    detail.textContent = item.active
+      ? `Active · ${formatLayoutDate(item.updatedAt)}`
+      : formatLayoutDate(item.updatedAt);
+    meta.append(title, detail);
+
+    const actions = document.createElement('div');
+    actions.className = 'layout-row-actions';
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.title = 'Rename';
+    renameBtn.textContent = '✎';
+    renameBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const next = prompt('Rename layout', item.name);
+      if (!next || next.trim() === item.name) return;
+      const res = await api.renameLayout(item.id, next.trim());
+      if (!res.ok) {
+        toast(res.error || 'Rename failed');
+        return;
+      }
+      if (item.active) state.layoutName = res.name;
+      updateLayoutsLabel();
+      await renderLayoutsList();
+      toast(`Renamed to “${res.name}”`);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.title = 'Delete';
+    delBtn.textContent = '✕';
+    delBtn.classList.add('danger');
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const res = await api.deleteLayout(item.id);
+      if (!res.ok) {
+        toast(res.error || 'Delete failed');
+        return;
+      }
+      await renderLayoutsList();
+      toast('Layout deleted');
+    });
+
+    actions.append(renameBtn, delBtn);
+    row.append(meta, actions);
+
+    row.addEventListener('click', async () => {
+      if (item.active) return;
+      await switchToLayout(item.id);
+    });
+
+    layoutsList.appendChild(row);
+  });
+}
+
+async function applyLayoutProfile(profile) {
+  state.layoutId = profile.id;
+  state.layoutName = profile.name;
+  state.root = normalize(profile.layout);
+  if (state.editMode) setEditMode(false);
+  await ensureAllFolders();
+  render();
+  updateLayoutsLabel();
+}
+
+async function switchToLayout(id) {
+  await flushSave();
+  const res = await api.loadLayoutProfile(id);
+  if (!res.ok) {
+    toast(res.error || 'Could not load layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  await renderLayoutsList();
+  toast(`Loaded “${res.name}”`);
+}
+
+async function openLayoutsDialog() {
+  await renderLayoutsList();
+  layoutsDialog.showModal();
+  wakeUi();
+}
+
+async function createNewLayout() {
+  const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
+  await flushSave();
+  const created = await api.createLayout(name);
+  const res = await api.loadLayoutProfile(created.id);
+  if (!res.ok) {
+    toast(res.error || 'Could not create layout');
+    return;
+  }
+  await applyLayoutProfile(res);
+  layoutsNewName.value = '';
+  await renderLayoutsList();
+  toast(`Created “${res.name}”`);
+}
+
+async function saveCurrentLayout() {
+  await flushSave();
+  await renderLayoutsList();
+  toast(`Saved “${state.layoutName}”`);
+}
+
+async function exportCurrentLayout() {
+  if (!state.layoutId) return;
+  await flushSave();
+  const res = await api.exportLayout(state.layoutId);
+  if (res.canceled) return;
+  if (!res.ok) {
+    toast(res.error || 'Export failed');
+    return;
+  }
+  toast('Layout exported');
+}
+
+async function importLayoutFile() {
+  await flushSave();
+  const res = await api.importLayout();
+  if (res.canceled) return;
+  if (!res.ok) {
+    toast(res.error || 'Import failed');
+    return;
+  }
+  await applyLayoutProfile(res);
+  await renderLayoutsList();
+  toast(`Imported “${res.name}”`);
+}
+
+layoutsBtn.addEventListener('click', () => openLayoutsDialog());
+layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
+layoutsCreateBtn.addEventListener('click', () => createNewLayout());
+layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
+layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
+layoutsImportBtn.addEventListener('click', () => importLayoutFile());
+layoutsNewName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') createNewLayout();
+});
+layoutsDialog.addEventListener('click', (e) => {
+  if (e.target === layoutsDialog) layoutsDialog.close();
+});
+
+/* ------------------------------------------------------------------ */
 /* Misc UI                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -660,13 +1037,38 @@ function toast(msg) {
 /* Boot                                                                */
 /* ------------------------------------------------------------------ */
 
+async function applySyncPayload(payload) {
+  state.libraryPath = payload.libraryPath;
+  state.root = normalize(payload.layout);
+  state.sliceIndex = payload.sliceIndex;
+  state.sliceCols = payload.cols;
+  state.sliceRows = payload.rows;
+  await ensureAllFolders();
+  render();
+}
+
+async function bootPresenter() {
+  state.presenterMode = true;
+  const params = new URLSearchParams(window.location.search);
+  state.sliceIndex = parseInt(params.get('slice') || '0', 10);
+  state.sliceCols = parseInt(params.get('cols') || '1', 10);
+  state.sliceRows = parseInt(params.get('rows') || '1', 10);
+
+  api.onPresenterSync(applySyncPayload);
+  window.addEventListener('resize', applyViewportSlice);
+  await api.presenterReady();
+}
+
 async function boot() {
   document.body.classList.add('ui-active');
   state.libraryPath = await api.getLibrary();
   updateLibraryLabel();
 
-  const saved = await api.loadLayout();
-  state.root = normalize(saved);
+  const active = await api.getActiveLayout();
+  state.layoutId = active.id;
+  state.layoutName = active.name;
+  state.root = normalize(active.layout);
+  updateLayoutsLabel();
 
   await ensureAllFolders();
   render();
@@ -677,6 +1079,12 @@ async function boot() {
   const isFs = await api.isFullscreen();
   updateFullscreenLabel(isFs);
   api.onFullscreenChanged(updateFullscreenLabel);
+
+  const displayStatus = await api.getDisplayStatus();
+  updateDisplaysLabel(displayStatus);
+  api.onDisplaySessionChanged(updateDisplaysLabel);
+  api.onDisplaysChanged(refreshDisplaysList);
+
   scheduleIdle();
 }
 
@@ -719,4 +1127,8 @@ window.__lvt = {
   }
 };
 
-boot();
+if (document.body.classList.contains('presenter-mode')) {
+  bootPresenter();
+} else {
+  boot();
+}
