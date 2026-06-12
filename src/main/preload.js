@@ -40,8 +40,8 @@ contextBridge.exposeInMainWorld('api', {
 
   listDisplays: () => ipcRenderer.invoke('displays:list'),
   getDisplayStatus: () => ipcRenderer.invoke('displays:status'),
-  startDisplays: (displayIds) =>
-    ipcRenderer.invoke('displays:start', { displayIds }),
+  startDisplays: (displayIds, layout) =>
+    ipcRenderer.invoke('displays:start', { displayIds, layout }),
   stopDisplays: () => ipcRenderer.invoke('displays:stop'),
   presenterReady: () => ipcRenderer.invoke('presenter:ready'),
   onPresenterSync: (callback) => {

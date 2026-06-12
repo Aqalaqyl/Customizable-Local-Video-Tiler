@@ -157,19 +157,30 @@ function findDisplayById(id) {
   return screen.getAllDisplays().find((d) => String(d.id) === String(id)) || null;
 }
 
-function getPresenterPayload(sliceIndex) {
+function getPresenterPayload(win) {
+  const slice = win && win.__slice ? win.__slice : { index: 0, cols: 1, rows: 1 };
+  const layout =
+    displaySession && displaySession.layoutSnapshot != null
+      ? displaySession.layoutSnapshot
+      : getActiveLayoutTree();
   return {
-    layout: getActiveLayoutTree(),
+    layout,
     libraryPath: getLibraryPath(),
-    sliceIndex,
-    cols: displaySession ? displaySession.cols : 1,
-    rows: displaySession ? displaySession.rows : 1
+    sliceIndex: slice.index,
+    cols: slice.cols,
+    rows: slice.rows,
+    viewportWidth: slice.width || 0,
+    viewportHeight: slice.height || 0
   };
 }
 
 function syncPresenterWindow(win) {
   if (!win || win.isDestroyed() || win.__slice == null) return;
-  win.webContents.send('presenter:sync', getPresenterPayload(win.__slice.index));
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', () => syncPresenterWindow(win));
+    return;
+  }
+  win.webContents.send('presenter:sync', getPresenterPayload(win));
 }
 
 function syncAllPresenters() {
@@ -210,14 +221,20 @@ function createPresenterWindow(display, slice) {
     }
   });
 
-  win.__slice = slice;
+  win.__slice = {
+    ...slice,
+    width: display.bounds.width,
+    height: display.bounds.height
+  };
   win.removeMenu();
 
   win.loadFile(path.join(__dirname, '..', 'renderer', 'presenter.html'), {
     query: {
       slice: String(slice.index),
       cols: String(slice.cols),
-      rows: String(slice.rows)
+      rows: String(slice.rows),
+      vw: String(display.bounds.width),
+      vh: String(display.bounds.height)
     }
   });
 
@@ -225,7 +242,14 @@ function createPresenterWindow(display, slice) {
     win.setBounds(display.bounds);
     win.show();
     win.setFullScreen(true);
+  });
+
+  win.webContents.on('did-finish-load', () => {
     syncPresenterWindow(win);
+  });
+
+  win.on('enter-full-screen', () => {
+    setTimeout(() => syncPresenterWindow(win), 50);
   });
 
   win.on('closed', () => {
@@ -249,7 +273,7 @@ function createPresenterWindow(display, slice) {
   return win;
 }
 
-function startDisplaySession(displayIds) {
+function startDisplaySession(displayIds, layoutSnapshot) {
   stopDisplaySession();
 
   const ids = [...new Set(displayIds.map(String))].slice(0, 4);
@@ -268,7 +292,13 @@ function startDisplaySession(displayIds) {
     createPresenterWindow(display, { index, cols, rows, total: sorted.length })
   );
 
-  displaySession = { displayIds: ids, cols, rows, windows };
+  displaySession = {
+    displayIds: ids,
+    cols,
+    rows,
+    windows,
+    layoutSnapshot: layoutSnapshot != null ? layoutSnapshot : getActiveLayoutTree()
+  };
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('display:session-changed', {
@@ -460,6 +490,7 @@ ipcMain.handle('layout:load', async () => {
 ipcMain.handle('layout:save', async (_evt, layout) => {
   const cfg = readConfigMigrated();
   saveActiveLayout(userDataPath(), cfg, layout);
+  if (displaySession) displaySession.layoutSnapshot = layout;
   syncAllPresenters();
   return true;
 });
@@ -613,8 +644,12 @@ ipcMain.handle('displays:status', async () => {
   };
 });
 
-ipcMain.handle('displays:start', async (_evt, { displayIds }) => {
-  return startDisplaySession(displayIds || []);
+ipcMain.handle('displays:start', async (_evt, { displayIds, layout }) => {
+  if (layout != null) {
+    const cfg = readConfigMigrated();
+    saveActiveLayout(userDataPath(), cfg, layout);
+  }
+  return startDisplaySession(displayIds || [], layout);
 });
 
 ipcMain.handle('displays:stop', async () => {

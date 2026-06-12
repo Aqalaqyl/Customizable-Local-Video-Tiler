@@ -9,6 +9,7 @@ import {
 } from './tree.js';
 
 const api = window.api;
+const isPresenter = document.body.classList.contains('presenter-mode');
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -19,10 +20,12 @@ const state = {
   libraryPath: '',
   editMode: false,
   shiftHeld: false,
-  presenterMode: false,
+  presenterMode: isPresenter,
   sliceIndex: 0,
   sliceCols: 1,
   sliceRows: 1,
+  viewportWidth: 0,
+  viewportHeight: 0,
   multiDisplayActive: false,
   layoutId: null,
   layoutName: 'Default'
@@ -149,23 +152,35 @@ function render() {
   applyViewportSlice();
 }
 
+function presenterViewportSize() {
+  const viewport = document.getElementById('stage-viewport');
+  const vw =
+    state.viewportWidth ||
+    (viewport && viewport.clientWidth) ||
+    window.innerWidth ||
+    document.documentElement.clientWidth;
+  const vh =
+    state.viewportHeight ||
+    (viewport && viewport.clientHeight) ||
+    window.innerHeight ||
+    document.documentElement.clientHeight;
+  return { vw: Math.max(1, Math.round(vw)), vh: Math.max(1, Math.round(vh)) };
+}
+
 function applyViewportSlice() {
   if (!state.presenterMode) return;
   const viewport = document.getElementById('stage-viewport');
   if (!viewport) return;
 
-  const cols = state.sliceCols;
-  const rows = state.sliceRows;
+  const cols = Math.max(1, state.sliceCols);
+  const rows = Math.max(1, state.sliceRows);
   const col = state.sliceIndex % cols;
   const row = Math.floor(state.sliceIndex / cols);
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const { vw, vh } = presenterViewportSize();
 
   stage.style.width = `${cols * vw}px`;
   stage.style.height = `${rows * vh}px`;
   stage.style.transform = `translate(${-col * vw}px, ${-row * vh}px)`;
-  viewport.style.width = `${vw}px`;
-  viewport.style.height = `${vh}px`;
 }
 
 function renderNode(node) {
@@ -580,60 +595,64 @@ async function removeTile(node) {
 function setEditMode(on) {
   state.editMode = on;
   document.body.classList.toggle('edit-mode', on);
-  editBtn.classList.toggle('active', on);
-  editBtn.innerHTML = on
-    ? '<span class="ico">✓</span> Done'
-    : '<span class="ico">✎</span> Edit Layout';
-  editHint.classList.toggle('hidden', !on);
+  if (editBtn) {
+    editBtn.classList.toggle('active', on);
+    editBtn.innerHTML = on
+      ? '<span class="ico">✓</span> Done'
+      : '<span class="ico">✎</span> Edit Layout';
+  }
+  if (editHint) editHint.classList.toggle('hidden', !on);
   if (on) wakeUi();
   else scheduleIdle();
 }
 
-editBtn.addEventListener('click', () => setEditMode(!state.editMode));
+if (!isPresenter) {
+  editBtn.addEventListener('click', () => setEditMode(!state.editMode));
 
-libraryBtn.addEventListener('click', async () => {
-  const chosen = await api.chooseLibrary();
-  if (chosen) {
-    state.libraryPath = chosen;
-    updateLibraryLabel();
-    // Re-bind every tile to a folder under the new library root.
-    forEachLeaf(state.root, (l) => {
-      l.folderPath = null;
-    });
-    await ensureAllFolders();
-    render();
-    scheduleSave();
-    toast('Library folder changed');
-  }
-});
+  libraryBtn.addEventListener('click', async () => {
+    const chosen = await api.chooseLibrary();
+    if (chosen) {
+      state.libraryPath = chosen;
+      updateLibraryLabel();
+      // Re-bind every tile to a folder under the new library root.
+      forEachLeaf(state.root, (l) => {
+        l.folderPath = null;
+      });
+      await ensureAllFolders();
+      render();
+      scheduleSave();
+      toast('Library folder changed');
+    }
+  });
 
-window.addEventListener('keydown', (e) => {
-  wakeUi();
-  if (e.key === 'Shift' && !state.shiftHeld) {
-    state.shiftHeld = true;
-    if (activeOverlay) updatePreview(activeOverlay);
-  }
-  if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    setEditMode(!state.editMode);
-  }
-  if (e.key === 'F11') {
-    e.preventDefault();
-    toggleFullscreen();
-  }
-  if (e.key === 'Escape' && state.multiDisplayActive) {
-    e.preventDefault();
-    stopMultiDisplay();
-  }
-});
+  window.addEventListener('keydown', (e) => {
+    wakeUi();
+    if (e.key === 'Shift' && !state.shiftHeld) {
+      state.shiftHeld = true;
+      if (activeOverlay) updatePreview(activeOverlay);
+    }
+    if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setEditMode(!state.editMode);
+    }
+    if (e.key === 'F11') {
+      e.preventDefault();
+      toggleFullscreen();
+    }
+    if (e.key === 'Escape' && state.multiDisplayActive) {
+      e.preventDefault();
+      stopMultiDisplay();
+    }
+  });
 
-window.addEventListener('keyup', (e) => {
-  wakeUi();
-  if (e.key === 'Shift') {
-    state.shiftHeld = false;
-    if (activeOverlay) updatePreview(activeOverlay);
-  }
-});
+  window.addEventListener('keyup', (e) => {
+    wakeUi();
+    if (e.key === 'Shift') {
+      state.shiftHeld = false;
+      if (activeOverlay) updatePreview(activeOverlay);
+    }
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Focus mode: auto-hide UI when idle                                  */
@@ -686,6 +705,7 @@ document.addEventListener('visibilitychange', () => {
 /* ------------------------------------------------------------------ */
 
 function updateFullscreenLabel(isFullscreen) {
+  if (!fullscreenBtn || !fullscreenLabel) return;
   fullscreenLabel.textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
   fullscreenBtn.title = isFullscreen
     ? 'Exit fullscreen (F11)'
@@ -699,7 +719,9 @@ async function toggleFullscreen() {
   wakeUi();
 }
 
-fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+if (!isPresenter) {
+  fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+}
 
 /* ------------------------------------------------------------------ */
 /* Multi-display (up to 4 monitors)                                    */
@@ -782,18 +804,19 @@ async function refreshDisplaysList() {
 }
 
 function updateDisplaysLabel(status) {
+  if (!displaysBtn || !displaysLabel) return;
   state.multiDisplayActive = !!status.active;
   displaysBtn.classList.toggle('active', status.active);
   if (status.active) {
     displaysLabel.textContent = `${status.count} Display${status.count === 1 ? '' : 's'}`;
     displaysBtn.title = 'Multi-display presentation active — click to manage';
-    displaysStartBtn.classList.add('hidden');
-    displaysStopBtn.classList.remove('hidden');
+    if (displaysStartBtn) displaysStartBtn.classList.add('hidden');
+    if (displaysStopBtn) displaysStopBtn.classList.remove('hidden');
   } else {
     displaysLabel.textContent = 'Displays';
     displaysBtn.title = 'Present on up to 4 displays';
-    displaysStartBtn.classList.remove('hidden');
-    displaysStopBtn.classList.add('hidden');
+    if (displaysStartBtn) displaysStartBtn.classList.remove('hidden');
+    if (displaysStopBtn) displaysStopBtn.classList.add('hidden');
   }
 }
 
@@ -809,7 +832,8 @@ async function startMultiDisplay() {
     toast('Select at least one display');
     return;
   }
-  const res = await api.startDisplays(ids);
+  await flushSave();
+  const res = await api.startDisplays(ids, serialize(state.root));
   if (!res.ok) {
     toast(res.error || 'Could not start multi-display mode');
     return;
@@ -826,20 +850,23 @@ async function stopMultiDisplay() {
   toast('Multi-display presentation stopped');
 }
 
-displaysBtn.addEventListener('click', () => openDisplaysDialog());
-displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
-displaysStartBtn.addEventListener('click', () => startMultiDisplay());
-displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
+if (!isPresenter) {
+  displaysBtn.addEventListener('click', () => openDisplaysDialog());
+  displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
+  displaysStartBtn.addEventListener('click', () => startMultiDisplay());
+  displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
 
-displaysDialog.addEventListener('click', (e) => {
-  if (e.target === displaysDialog) displaysDialog.close();
-});
+  displaysDialog.addEventListener('click', (e) => {
+    if (e.target === displaysDialog) displaysDialog.close();
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Saved layouts — create, load, import, export                        */
 /* ------------------------------------------------------------------ */
 
 function updateLayoutsLabel() {
+  if (!layoutsBtn || !layoutsLabel) return;
   layoutsLabel.textContent = state.layoutName || 'Layouts';
   layoutsBtn.title = `Current layout: ${state.layoutName}`;
 }
@@ -1001,24 +1028,27 @@ async function importLayoutFile() {
   toast(`Imported “${res.name}”`);
 }
 
-layoutsBtn.addEventListener('click', () => openLayoutsDialog());
-layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
-layoutsCreateBtn.addEventListener('click', () => createNewLayout());
-layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
-layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
-layoutsImportBtn.addEventListener('click', () => importLayoutFile());
-layoutsNewName.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') createNewLayout();
-});
-layoutsDialog.addEventListener('click', (e) => {
-  if (e.target === layoutsDialog) layoutsDialog.close();
-});
+if (!isPresenter) {
+  layoutsBtn.addEventListener('click', () => openLayoutsDialog());
+  layoutsCloseBtn.addEventListener('click', () => layoutsDialog.close());
+  layoutsCreateBtn.addEventListener('click', () => createNewLayout());
+  layoutsSaveBtn.addEventListener('click', () => saveCurrentLayout());
+  layoutsExportBtn.addEventListener('click', () => exportCurrentLayout());
+  layoutsImportBtn.addEventListener('click', () => importLayoutFile());
+  layoutsNewName.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') createNewLayout();
+  });
+  layoutsDialog.addEventListener('click', (e) => {
+    if (e.target === layoutsDialog) layoutsDialog.close();
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Misc UI                                                             */
 /* ------------------------------------------------------------------ */
 
 function updateLibraryLabel() {
+  if (!libraryLabel || !libraryBtn) return;
   const parts = state.libraryPath.split(/[\\/]/);
   const short = parts.slice(-2).join('/') || state.libraryPath;
   libraryLabel.textContent = short;
@@ -1027,6 +1057,7 @@ function updateLibraryLabel() {
 
 let toastTimer = null;
 function toast(msg) {
+  if (!toastEl) return;
   toastEl.textContent = msg;
   toastEl.classList.remove('hidden');
   clearTimeout(toastTimer);
@@ -1043,19 +1074,30 @@ async function applySyncPayload(payload) {
   state.sliceIndex = payload.sliceIndex;
   state.sliceCols = payload.cols;
   state.sliceRows = payload.rows;
+  state.viewportWidth = payload.viewportWidth || state.viewportWidth;
+  state.viewportHeight = payload.viewportHeight || state.viewportHeight;
   await ensureAllFolders();
   render();
+  requestAnimationFrame(() => {
+    applyViewportSlice();
+    requestAnimationFrame(applyViewportSlice);
+  });
 }
 
 async function bootPresenter() {
-  state.presenterMode = true;
   const params = new URLSearchParams(window.location.search);
   state.sliceIndex = parseInt(params.get('slice') || '0', 10);
   state.sliceCols = parseInt(params.get('cols') || '1', 10);
   state.sliceRows = parseInt(params.get('rows') || '1', 10);
+  state.viewportWidth = parseInt(params.get('vw') || '0', 10);
+  state.viewportHeight = parseInt(params.get('vh') || '0', 10);
 
   api.onPresenterSync(applySyncPayload);
-  window.addEventListener('resize', applyViewportSlice);
+  window.addEventListener('resize', () => {
+    state.viewportWidth = 0;
+    state.viewportHeight = 0;
+    applyViewportSlice();
+  });
   await api.presenterReady();
 }
 
@@ -1106,6 +1148,9 @@ window.__lvt = {
   rerender() {
     render();
   },
+  serializeLayout() {
+    return serialize(state.root);
+  },
   async split(id, direction, ratio) {
     await doSplit(findNode(state.root, id), direction, ratio);
     return this.leaves();
@@ -1127,7 +1172,7 @@ window.__lvt = {
   }
 };
 
-if (document.body.classList.contains('presenter-mode')) {
+if (isPresenter) {
   bootPresenter();
 } else {
   boot();

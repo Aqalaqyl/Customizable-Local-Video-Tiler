@@ -177,7 +177,15 @@ body.presenter-mode #stage {
   position: absolute;
   top: 0;
   left: 0;
+  right: auto;
+  bottom: auto;
+  overflow: hidden;
   transform-origin: top left;
+}
+
+body.presenter-mode .tile-empty {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 body.presenter-mode #toolbar,
