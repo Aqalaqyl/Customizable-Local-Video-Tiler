@@ -166,11 +166,66 @@ body.presenter-mode {
   background: #000;
 }
 
+.presenter-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, #1a1f29, #14181f);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+.presenter-toolbar-left,
+.presenter-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.presenter-toolbar-center {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+}
+
+.presenter-title {
+  font-weight: 650;
+  font-size: 13.5px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.presenter-mode.ui-idle:not(.edit-mode) .presenter-toolbar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 body.presenter-mode #stage-viewport {
   position: fixed;
-  inset: 0;
+  top: 52px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
   background: #000;
+  transition: top 0.35s ease;
+}
+
+body.presenter-mode.ui-idle:not(.edit-mode) #stage-viewport {
+  top: 0;
 }
 
 body.presenter-mode #stage {
@@ -182,14 +237,9 @@ body.presenter-mode #stage {
   transform: none;
 }
 
-body.presenter-mode .tile-empty {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 body.presenter-mode #toolbar,
-body.presenter-mode #wake-hint,
-body.presenter-mode .displays-dialog {
+body.presenter-mode .displays-dialog,
+body.presenter-mode .layouts-dialog {
   display: none !important;
 }
 

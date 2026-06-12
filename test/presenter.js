@@ -80,6 +80,10 @@ app.whenReady().then(async () => {
     check('assignment includes layout id', !!startRes.assignments?.[0]?.layoutId);
 
     const presenter = await waitForPresenter();
+    check(
+      'presenter has edit toolbar',
+      await evalInPage(presenter, () => !!document.getElementById('presenter-edit-btn'))
+    );
     if (presenter.webContents.isLoading()) {
       await new Promise((res) => presenter.webContents.once('did-finish-load', res));
     }

@@ -491,7 +491,19 @@ in **▤ Layouts**.
 Click **Present**. The app opens a **borderless fullscreen window** on each
 selected monitor, each running **its own layout** at full size.
 
-### Step 12.5 — Stop presenting
+### Step 12.5 — Edit directly on each display
+
+While presenting, move the mouse on any display to reveal its toolbar, then:
+
+- Click **✎ Edit Layout** (or press **`Ctrl/Cmd + E`**) to split, resize, and
+  remove tiles on **that display only**
+- Hover tiles for **add videos**, **playlist**, **rename**, and other controls
+- Changes save automatically to that display’s layout profile
+
+The UI auto-hides after a few seconds of inactivity so you can keep watching.
+Press **`Ctrl/Cmd + E`** anytime to edit that screen’s layout again.
+
+### Step 12.6 — Stop presenting
 
 - Click **🖥 Displays** → **Stop**
 - Press **`Escape`** while the main window is focused

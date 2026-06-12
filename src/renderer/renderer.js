@@ -23,12 +23,14 @@ const state = {
   presenterMode: isPresenter,
   multiDisplayActive: false,
   layoutId: null,
-  layoutName: 'Default'
+  layoutName: 'Default',
+  displayLabel: ''
 };
 
 const stage = document.getElementById('stage');
-const editBtn = document.getElementById('edit-btn');
-const editHint = document.getElementById('edit-hint');
+const editBtn = document.getElementById('edit-btn') || document.getElementById('presenter-edit-btn');
+const editHint = document.getElementById('edit-hint') || document.getElementById('presenter-edit-hint');
+const presenterTitle = document.getElementById('presenter-title');
 const libraryBtn = document.getElementById('library-btn');
 const libraryLabel = document.getElementById('library-label');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -66,14 +68,17 @@ let activeOverlay = null;
 
 let saveTimer = null;
 function scheduleSave() {
-  if (state.presenterMode) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => flushSave(), 250);
 }
 
 async function flushSave() {
-  if (state.presenterMode) return;
   clearTimeout(saveTimer);
+  if (state.presenterMode) {
+    if (!state.layoutId) return;
+    await api.saveLayoutById(state.layoutId, serialize(state.root));
+    return;
+  }
   await api.saveLayout(serialize(state.root));
 }
 
@@ -192,24 +197,17 @@ function renderLeaf(node) {
   empty.innerHTML =
     '<div class="big">🎬</div>' +
     '<div>No videos in this tile yet</div>';
-  if (!state.presenterMode) {
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn';
-    addBtn.textContent = '＋ Add videos';
-    addBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      addVideos(node, tile);
-    });
-    empty.appendChild(addBtn);
-  }
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn';
+  addBtn.textContent = '＋ Add videos';
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    addVideos(node, tile);
+  });
+  empty.appendChild(addBtn);
   media.appendChild(empty);
 
   tile.appendChild(media);
-
-  if (state.presenterMode) {
-    loadPlaylist(node, tile, null, video, empty);
-    return tile;
-  }
 
   // --- playlist ---
   const playlist = document.createElement('div');
@@ -323,7 +321,7 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
     node.currentVideo && files.some((f) => f.path === node.currentVideo)
       ? node.currentVideo
       : files[0].path;
-  setActive(node, tile, video, restore, state.presenterMode);
+  setActive(node, tile, video, restore, state.presenterMode && !state.editMode);
 }
 
 function setActive(node, tile, video, filePath, autoplay) {
@@ -569,9 +567,11 @@ function setEditMode(on) {
   else scheduleIdle();
 }
 
-if (!isPresenter) {
+if (editBtn) {
   editBtn.addEventListener('click', () => setEditMode(!state.editMode));
+}
 
+if (!isPresenter) {
   libraryBtn.addEventListener('click', async () => {
     const chosen = await api.chooseLibrary();
     if (chosen) {
@@ -588,16 +588,19 @@ if (!isPresenter) {
     }
   });
 
-  window.addEventListener('keydown', (e) => {
-    wakeUi();
-    if (e.key === 'Shift' && !state.shiftHeld) {
-      state.shiftHeld = true;
-      if (activeOverlay) updatePreview(activeOverlay);
-    }
-    if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      setEditMode(!state.editMode);
-    }
+}
+
+window.addEventListener('keydown', (e) => {
+  wakeUi();
+  if (e.key === 'Shift' && !state.shiftHeld) {
+    state.shiftHeld = true;
+    if (activeOverlay) updatePreview(activeOverlay);
+  }
+  if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    setEditMode(!state.editMode);
+  }
+  if (!isPresenter) {
     if (e.key === 'F11') {
       e.preventDefault();
       toggleFullscreen();
@@ -606,16 +609,16 @@ if (!isPresenter) {
       e.preventDefault();
       stopMultiDisplay();
     }
-  });
+  }
+});
 
-  window.addEventListener('keyup', (e) => {
-    wakeUi();
-    if (e.key === 'Shift') {
-      state.shiftHeld = false;
-      if (activeOverlay) updatePreview(activeOverlay);
-    }
-  });
-}
+window.addEventListener('keyup', (e) => {
+  wakeUi();
+  if (e.key === 'Shift') {
+    state.shiftHeld = false;
+    if (activeOverlay) updatePreview(activeOverlay);
+  }
+});
 
 /* ------------------------------------------------------------------ */
 /* Focus mode: auto-hide UI when idle                                  */
@@ -1137,16 +1140,31 @@ function toast(msg) {
 /* Boot                                                                */
 /* ------------------------------------------------------------------ */
 
+function updatePresenterTitle() {
+  if (!presenterTitle) return;
+  const parts = [];
+  if (state.displayLabel) parts.push(state.displayLabel);
+  if (state.layoutName) parts.push(state.layoutName);
+  presenterTitle.textContent = parts.join(' · ') || 'Display';
+}
+
 async function applySyncPayload(payload) {
+  if (state.presenterMode && state.editMode) return;
   state.libraryPath = payload.libraryPath;
+  state.layoutId = payload.layoutId || state.layoutId;
+  state.layoutName = payload.layoutName || state.layoutName;
+  state.displayLabel = payload.displayLabel || state.displayLabel;
   state.root = normalize(payload.layout);
+  updatePresenterTitle();
   await ensureAllFolders();
   render();
 }
 
 async function bootPresenter() {
+  document.body.classList.add('ui-active');
   api.onPresenterSync(applySyncPayload);
   await api.presenterReady();
+  scheduleIdle();
 }
 
 async function boot() {

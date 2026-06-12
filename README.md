@@ -131,9 +131,9 @@ video wall across your entire screen. Press `F11` again to exit.
 ### 7. Present on multiple displays
 
 Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
-**Present**. Each display runs its own tile grid fullscreen (not a copy of the
-main window). Use **Edit** beside a display to design its layout. Press
-**`Escape`** or **Stop** to end presentation.
+**Present**. Each display runs its own tile grid fullscreen. Move the mouse on
+any display to reveal **✎ Edit Layout** (`Ctrl/Cmd+E`) and edit that screen’s
+tiles directly. Press **`Escape`** or **Stop** to end presentation.
 
 ### 8. Manage saved layouts
 
