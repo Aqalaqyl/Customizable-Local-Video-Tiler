@@ -183,6 +183,7 @@ function getPresenterPayload(win) {
     libraryPath: getLibraryPath(),
     displayId: assignment ? assignment.displayId : null,
     layoutId: assignment ? assignment.layoutId : null,
+    layoutName: assignment ? assignment.layoutName : null,
     displayLabel: assignment ? assignment.displayLabel : null
   };
 }
@@ -203,7 +204,7 @@ function syncAllPresenters() {
   }
 }
 
-function syncPresentersForLayout(layoutId, layout) {
+function syncPresentersForLayout(layoutId, layout, exceptSenderId) {
   if (!displaySession || !layoutId) return;
   let changed = false;
   for (const item of displaySession.assignments) {
@@ -216,6 +217,7 @@ function syncPresentersForLayout(layoutId, layout) {
   for (const win of displaySession.windows) {
     if (win.__assignment && win.__assignment.layoutId === layoutId) {
       win.__assignment.layoutSnapshot = layout;
+      if (exceptSenderId != null && win.webContents.id === exceptSenderId) continue;
       syncPresenterWindow(win);
     }
   }
@@ -544,11 +546,25 @@ ipcMain.handle('layout:load', async () => {
   return getActiveLayoutTree();
 });
 
-ipcMain.handle('layout:save', async (_evt, layout) => {
+ipcMain.handle('layout:save', async (evt, layout) => {
   const cfg = readConfigMigrated();
   saveActiveLayout(userDataPath(), cfg, layout);
-  syncPresentersForLayout(cfg.activeLayoutId, layout);
+  syncPresentersForLayout(cfg.activeLayoutId, layout, evt.sender.id);
   return true;
+});
+
+ipcMain.handle('layouts:saveById', async (evt, { id, layout }) => {
+  const entry = readLayoutFile(userDataPath(), id);
+  if (!entry) return { ok: false, error: 'Layout not found' };
+  const { writeLayoutFile } = require('./layouts');
+  writeLayoutFile(userDataPath(), {
+    id,
+    name: entry.name,
+    updatedAt: new Date().toISOString(),
+    layout
+  });
+  syncPresentersForLayout(id, layout, evt.sender.id);
+  return { ok: true };
 });
 
 ipcMain.handle('layouts:list', async () => {

@@ -10,9 +10,29 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="presenter-mode ui-idle">
+    <header id="presenter-toolbar" class="presenter-toolbar">
+      <div class="presenter-toolbar-left">
+        <span class="app-mark">▦</span>
+        <span id="presenter-title" class="presenter-title">Display</span>
+      </div>
+      <div class="presenter-toolbar-center">
+        <span id="presenter-edit-hint" class="edit-hint hidden">
+          <b>Click</b> to split vertically &nbsp;•&nbsp;
+          <b>Shift + Click</b> to split horizontally &nbsp;•&nbsp;
+          Drag dividers to resize
+        </span>
+      </div>
+      <div class="presenter-toolbar-right">
+        <button id="presenter-edit-btn" class="btn">
+          <span class="ico">✎</span> Edit Layout
+        </button>
+      </div>
+    </header>
     <div id="stage-viewport">
       <main id="stage"></main>
     </div>
+    <div id="wake-hint" aria-hidden="true">Move mouse or press a key to show controls</div>
+    <div id="toast" class="toast hidden"></div>
     <script type="module" src="renderer.js"></script>
   </body>
 </html>

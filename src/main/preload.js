@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
 
   loadLayout: () => ipcRenderer.invoke('layout:load'),
   saveLayout: (layout) => ipcRenderer.invoke('layout:save', layout),
+  saveLayoutById: (id, layout) =>
+    ipcRenderer.invoke('layouts:saveById', { id, layout }),
 
   listLayouts: () => ipcRenderer.invoke('layouts:list'),
   getActiveLayout: () => ipcRenderer.invoke('layouts:active'),
