@@ -70,8 +70,19 @@ function arrangeDisplays(displays) {
   return { cols: 2, rows: 2 };
 }
 
+/** Assign stable folder slots 1–4 in grid order (left-to-right, top-to-bottom). */
+function assignDisplaySlots(displays) {
+  const sorted = sortDisplaysInGridOrder(displays);
+  const slots = new Map();
+  sorted.forEach((d, index) => {
+    slots.set(String(d.id), index + 1);
+  });
+  return slots;
+}
+
 module.exports = {
   displayCenter,
   sortDisplaysInGridOrder,
-  arrangeDisplays
+  arrangeDisplays,
+  assignDisplaySlots
 };

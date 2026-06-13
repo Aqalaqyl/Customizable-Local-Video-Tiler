@@ -106,6 +106,18 @@ app.whenReady().then(async () => {
       () => document.querySelector('.playlist-item.active .pi-name')?.textContent || ''
     );
     check('loop mode does not advance to the next playlist item', activeWithLoop === 'b-second.mp4');
+
+    fs.unlinkSync(path.join(folder, 'b-second.mp4'));
+    fs.unlinkSync(path.join(folder, 'a-first.webm'));
+    fs.writeFileSync(path.join(folder, 'only.mp4'), 'x');
+    await evalInPage(win, () => window.__lvt.rerender());
+    await new Promise((r) => setTimeout(r, 500));
+
+    const singleVideoLoop = await evalInPage(
+      win,
+      () => document.querySelector('.tile-video').loop
+    );
+    check('single-video playlist loops automatically', singleVideoLoop === true);
   } catch (err) {
     console.log('FAIL - exception:', err && err.stack ? err.stack : String(err));
     results.push({ name: 'no exception', ok: false });
