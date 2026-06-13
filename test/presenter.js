@@ -109,23 +109,23 @@ app.whenReady().then(async () => {
     check('presenter renders at least one tile', tileCount >= 1);
 
     const presenterFolders = await evalInPage(presenter, () => window.__lvt.leaves());
-    const displaySegment = `${path.sep}displays${path.sep}1${path.sep}`;
+    const displaySegment = `${path.sep}display1${path.sep}tile1`;
     check(
-      'presenter tile folders are scoped to display slot 1',
+      'presenter tile folders use display1/tile1',
       presenterFolders.length >= 1 &&
         presenterFolders.every((leaf) => leaf.folderPath.includes(displaySegment))
     );
 
     const scopedFolders = await evalInPage(win, async () => {
-      const a = await window.api.ensureFolder('OverlapTest', null, 1);
-      const b = await window.api.ensureFolder('OverlapTest', null, 2);
+      const a = await window.api.ensureFolder(1, null, 1);
+      const b = await window.api.ensureFolder(1, null, 2);
       return [a.path, b.path];
     });
     check(
-      'same tile name on different display slots uses separate folders',
+      'same tile number on different displays uses separate folders',
       scopedFolders[0] !== scopedFolders[1] &&
-        scopedFolders[0].includes(`${path.sep}displays${path.sep}1`) &&
-        scopedFolders[1].includes(`${path.sep}displays${path.sep}2`)
+        scopedFolders[0].includes(`${path.sep}display1${path.sep}tile1`) &&
+        scopedFolders[1].includes(`${path.sep}display2${path.sep}tile1`)
     );
 
     const stageSize = await evalInPage(presenter, () => {

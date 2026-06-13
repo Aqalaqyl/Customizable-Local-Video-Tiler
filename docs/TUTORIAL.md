@@ -133,8 +133,8 @@ What happens automatically on first launch:
 
 1. A **media library folder** is created inside the app data directory (by default
    `…/local-video-tiler/media/` on most systems).
-2. Tile folders are created under `media/displays/1/` for your first screen (even
-   when only one monitor is connected).
+2. Tile folders are created under `media/display1/tile1`, `media/display1/tile2`, and
+   so on for your first screen (even when only one monitor is connected).
 3. An empty layout with **one tile** is shown.
 
 You are ready to add media or customize the layout.
@@ -143,10 +143,10 @@ You are ready to add media or customize the layout.
 
 ## 5. Choose your library folder
 
-The **library** is the `media` folder where tile folders live. Each tile gets its
-own subfolder inside `media/displays/1/` through `media/displays/4/` (one folder
-per monitor slot). When only one display is connected, tiles still use
-`displays/1/` so adding monitors later does not duplicate files.
+The **library** is the `media` folder where tile folders live. Each tile uses a
+numbered folder such as `media/display1/tile1` through `media/display4/tileN`.
+When only one display is connected, tiles still use `display1/` so adding
+monitors later does not duplicate files.
 
 ### Step 5.1 — Open the library picker
 
@@ -643,8 +643,9 @@ Default location (`media` folder inside the app data directory):
 | macOS | `~/Library/Application Support/local-video-tiler/media/` |
 | Linux | `~/.config/local-video-tiler/media/` |
 
-Each tile is a subfolder under `media/displays/1/` through `media/displays/4/`,
-named after the tile. With one monitor, everything uses `displays/1/`.
+Each tile is a numbered subfolder under `media/display1/tile1` through
+`media/display4/tileN`. With one monitor, everything uses `display1/`. Tile
+names in the app are labels only — folders stay `tile1`, `tile2`, etc.
 
 ### App configuration (settings + active layout id)
 

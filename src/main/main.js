@@ -9,7 +9,13 @@ const {
   arrangeDisplays,
   assignDisplaySlots
 } = require('./displays');
-const { resolveLibraryRoot, pathWithinRoot, DEFAULT_DISPLAY_SLOT } = require('./library-paths');
+const {
+  resolveLibraryRoot,
+  pathWithinRoot,
+  tileFolderName,
+  displayFolderName,
+  DEFAULT_DISPLAY_SLOT
+} = require('./library-paths');
 const {
   listLayoutFiles,
   readLayoutFile,
@@ -451,37 +457,27 @@ ipcMain.handle('library:choose', async () => {
   return chosen;
 });
 
-// Ensure a folder exists for a tile. Renames the existing folder when the
-// tile's name changes so the folder on disk always matches the tile name.
-// When displaySlot is omitted, tile folders live under {library}/displays/1/.
-ipcMain.handle('folder:ensure', async (_evt, { name, currentPath, displaySlot }) => {
+// Ensure a numbered tile folder under {library}/display#/tile#/.
+ipcMain.handle('folder:ensure', async (_evt, { tileSlot, currentPath, displaySlot }) => {
   const libraryPath = resolveLibraryRoot(getLibraryPath(), displaySlot);
+  const folderName = tileFolderName(tileSlot);
+  const target = path.join(libraryPath, folderName);
   fs.mkdirSync(libraryPath, { recursive: true });
 
   if (currentPath && !pathWithinRoot(currentPath, libraryPath)) {
     currentPath = null;
   }
 
-  // Folder already exists at currentPath and the name still matches: keep it.
-  const sanitized = sanitizeFolderName(name);
-  if (currentPath && fs.existsSync(currentPath)) {
-    const currentBase = path.basename(currentPath);
-    if (currentBase === sanitized) {
-      return { path: currentPath, name: sanitized };
-    }
-    // Name changed -> rename the folder.
-    const target = await uniqueFolderPath(libraryPath, name, currentPath);
-    try {
-      await fsp.rename(currentPath, target);
-      return { path: target, name: path.basename(target) };
-    } catch (e) {
-      console.error('Rename failed, creating new folder', e);
-    }
+  if (
+    currentPath &&
+    fs.existsSync(currentPath) &&
+    path.basename(currentPath) === folderName
+  ) {
+    return { path: currentPath, name: folderName };
   }
 
-  const target = await uniqueFolderPath(libraryPath, name, currentPath);
   fs.mkdirSync(target, { recursive: true });
-  return { path: target, name: path.basename(target) };
+  return { path: target, name: folderName };
 });
 
 ipcMain.handle('folder:delete', async (_evt, { folderPath, removeFiles }) => {
@@ -830,5 +826,7 @@ module.exports = {
   validateLayoutFile,
   resolveLibraryRoot,
   pathWithinRoot,
+  tileFolderName,
+  displayFolderName,
   DEFAULT_DISPLAY_SLOT
 };

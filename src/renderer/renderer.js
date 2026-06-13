@@ -95,6 +95,7 @@ function serialize(node) {
       type: 'leaf',
       name: node.name,
       folderPath: node.folderPath,
+      tileSlot: node.tileSlot || null,
       currentVideo: node.currentVideo || null,
       loopVideo: !!node.loopVideo
     };
@@ -116,6 +117,7 @@ function normalize(node) {
       type: 'leaf',
       name: node.name || 'Untitled',
       folderPath: node.folderPath || null,
+      tileSlot: node.tileSlot || null,
       currentVideo: node.currentVideo || null,
       loopVideo: !!node.loopVideo
     };
@@ -140,7 +142,7 @@ function effectiveDisplaySlot() {
 function displayLibraryRoot() {
   if (!state.libraryPath) return null;
   const base = state.libraryPath.replace(/[/\\]+$/, '');
-  return `${base}/displays/${effectiveDisplaySlot()}`;
+  return `${base}/display${effectiveDisplaySlot()}`;
 }
 
 function folderUnderDisplayRoot(folderPath) {
@@ -155,19 +157,42 @@ function folderUnderDisplayRoot(folderPath) {
   );
 }
 
-function rebindFoldersForDisplay() {
+function folderBasename(folderPath) {
+  if (!folderPath) return '';
+  const parts = folderPath.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1] || '';
+}
+
+function folderMatchesTileSlot(folderPath, tileSlot) {
+  if (!tileSlot) return false;
+  return folderBasename(folderPath) === `tile${tileSlot}`;
+}
+
+function assignTileSlots() {
+  let slot = 0;
   forEachLeaf(state.root, (leaf) => {
-    if (!folderUnderDisplayRoot(leaf.folderPath)) {
+    slot += 1;
+    leaf.tileSlot = slot;
+  });
+}
+
+function rebindFoldersForDisplay() {
+  assignTileSlots();
+  forEachLeaf(state.root, (leaf) => {
+    if (
+      !folderUnderDisplayRoot(leaf.folderPath) ||
+      !folderMatchesTileSlot(leaf.folderPath, leaf.tileSlot)
+    ) {
       leaf.folderPath = null;
     }
   });
 }
 
 async function ensureLeafFolder(node) {
-  const res = await api.ensureFolder(node.name, node.folderPath, effectiveDisplaySlot());
+  if (!node.tileSlot) assignTileSlots();
+  const res = await api.ensureFolder(node.tileSlot, node.folderPath, effectiveDisplaySlot());
   if (res) {
     node.folderPath = res.path;
-    node.name = res.name;
   }
   return node;
 }
@@ -275,7 +300,7 @@ function renderLeaf(node) {
   const controls = document.createElement('div');
   controls.className = 'tile-controls';
 
-  const renameCtl = controlButton('✎', 'Rename tile & folder', (e) => {
+  const renameCtl = controlButton('✎', 'Rename tile', (e) => {
     e.stopPropagation();
     startRename(node, tile, badge);
   });
@@ -572,17 +597,8 @@ function startRename(node, tile, badge) {
     input.remove();
     unlockUi();
     if (save && newName && newName !== node.name) {
-      const res = await api.ensureFolder(newName, node.folderPath, effectiveDisplaySlot());
-      if (res) {
-        node.name = res.name;
-        node.folderPath = res.path;
-      }
+      node.name = newName;
       badge.querySelector('.badge-text').textContent = node.name;
-      // Folder changed -> reload its contents.
-      const plBody = tile.querySelector('.playlist-body');
-      const video = tile.querySelector('.tile-video');
-      const empty = tile.querySelector('.tile-empty');
-      await loadPlaylist(node, tile, plBody, video, empty);
       scheduleSave();
       toast(`Renamed to “${node.name}”`);
     }
@@ -871,7 +887,7 @@ function renderDisplaysList() {
     title.textContent = slot ? `Display ${slot} · ${d.label}` : d.label;
     const detail = document.createElement('div');
     detail.className = 'display-detail';
-    const folderHint = slot ? `Folder: displays/${slot}/` : '';
+    const folderHint = slot ? `Folder: display${slot}/tile#` : '';
     detail.textContent = [
       formatDisplaySize(d.bounds),
       d.primary ? 'Primary' : '',
@@ -1361,11 +1377,7 @@ window.__lvt = {
   },
   async rename(id, name) {
     const node = findNode(state.root, id);
-    const res = await api.ensureFolder(name, node.folderPath, effectiveDisplaySlot());
-    if (res) {
-      node.name = res.name;
-      node.folderPath = res.path;
-    }
+    node.name = name;
     render();
     scheduleSave();
     return this.leaves();

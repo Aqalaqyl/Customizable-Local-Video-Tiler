@@ -7,9 +7,9 @@ contextBridge.exposeInMainWorld('api', {
   getLibrary: () => ipcRenderer.invoke('library:get'),
   chooseLibrary: () => ipcRenderer.invoke('library:choose'),
 
-  ensureFolder: (name, currentPath, displaySlot) =>
+  ensureFolder: (tileSlot, currentPath, displaySlot) =>
     ipcRenderer.invoke('folder:ensure', {
-      name,
+      tileSlot,
       currentPath,
       displaySlot: displaySlot ?? null
     }),

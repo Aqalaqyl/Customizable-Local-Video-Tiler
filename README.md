@@ -29,10 +29,11 @@ backed by a real folder on disk, so the app doubles as a simple media organizer.
   - **Shift + Left click** → split **horizontally** (top / bottom).
   - The split happens exactly where you click, so layouts are highly precise.
 - **Drag to resize** – grab any divider to fine-tune the ratio between panes.
-- **Folder-backed tiles** – every tile maps to its own folder. Name a tile and
-  the folder on disk is created/renamed to match, giving you tidy organization.
-- **Hover names** – hover any tile to see its name; it always matches the
-  corresponding folder.
+- **Folder-backed tiles** – every tile maps to a numbered folder (`display1/tile1`,
+  `display1/tile2`, …). Rename a tile to change its on-screen label; the folder
+  number stays the same.
+- **Hover names** – hover any tile to see its label; folders on disk use `tile#`
+  names under `display#`.
 - **Per-tile player + playlist** – each tile has its own video/audio player and a
   scrollable playlist of the media in its folder.
 - **Focus mode** – the toolbar, tile controls, and player chrome auto-hide after a
@@ -83,8 +84,9 @@ That's it — the app window opens with a single tile.
 Click **📁 Library…** in the top bar to pick the root folder where tile folders
 are created. By default it lives in a `media` folder inside the app's data
 directory (e.g. `…/local-video-tiler/media/`). Tile folders are always placed
-under `displays/1/` through `displays/4/` inside that folder. Changing the
-library re-binds every tile to a fresh folder under the new root.
+under `display1/` through `display4/` inside that folder (`display1/tile1`,
+`display1/tile2`, …). Changing the library re-binds every tile to fresh numbered
+folders under the new root.
 
 ### 2. Build your layout (Edit mode)
 
@@ -99,20 +101,20 @@ library re-binds every tile to a fresh folder under the new root.
    fill the space). The folder on disk is kept unless you delete it yourself.
 7. Click **✓ Done** to leave edit mode and start watching.
 
-### 3. Name your tiles / folders
+### 3. Name your tiles
 
 Each tile has a small toolbar (top-right, visible on hover):
 
 | Button | Action |
 | ------ | ------ |
-| ✎ | Rename the tile **and** its folder on disk |
+| ✎ | Rename the tile label (folder stays `tile#` on disk) |
 | ＋ | Add videos (copies selected files into this tile's folder) |
 | ☰ | Show/hide the playlist |
 | 🔁 | Loop the current video (instead of advancing through the playlist) |
 | ⮳ | Open the tile's folder in your OS file manager |
 | ✕ | Remove the tile (edit-mode layout action) |
 
-Hover any tile to see its name badge — it always reflects the matching folder.
+Hover any tile to see its name badge — it shows the tile label you chose.
 
 ### 4. Watch & listen
 
@@ -137,8 +139,9 @@ video wall across your entire screen. Press `F11` again to exit.
 
 Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
 **Present**. Each display runs its own tile grid fullscreen with tile folders
-under `{media}/displays/1/` through `{media}/displays/4/`. Even with one
-monitor, tiles use `displays/1/` so adding screens later won't duplicate files. Move the mouse on any display to reveal **✎ Edit Layout**
+under `{media}/display1/` through `{media}/display4/` as `tile1`, `tile2`, etc.
+Even with one monitor, tiles use `display1/` so adding screens later won't
+duplicate files. Move the mouse on any display to reveal **✎ Edit Layout**
 (`Ctrl/Cmd+E`) and edit that screen’s tiles directly. Press **`Escape`** or click
 **Stop** on any presenter to end presentation, or **`Ctrl+Q`** / **Quit** to exit
 the app.

@@ -61,8 +61,8 @@ app.whenReady().then(async () => {
     const rootId = leaves[0].id;
     check('initial tile has a folder on disk', fs.existsSync(leaves[0].folderPath));
     check(
-      'single-display tile folders live under displays/1',
-      leaves[0].folderPath.includes(`${path.sep}displays${path.sep}1${path.sep}`)
+      'single-display tile folders live under display1/tile1',
+      /[/\\]display1[/\\]tile1$/.test(leaves[0].folderPath)
     );
 
     // 2. Vertical split -> two tiles, two folders.
@@ -91,6 +91,7 @@ app.whenReady().then(async () => {
     // 4. Rename a tile -> folder on disk is renamed to match.
     const target = leaves[0];
     const newName = `Rename Test ${Date.now()}`;
+    const folderBefore = target.folderPath;
     const renamed = await evalInPage(
       win,
       (id, name) => window.__lvt.rename(id, name),
@@ -100,11 +101,14 @@ app.whenReady().then(async () => {
     const renamedLeaf = renamed.find((l) => l.id === target.id);
     check('rename updates tile name', renamedLeaf.name === newName);
     check(
-      'renamed folder basename matches tile name',
-      path.basename(renamedLeaf.folderPath) === newName
+      'rename keeps numbered tile folder',
+      renamedLeaf.folderPath === folderBefore
     );
-    check('renamed folder exists on disk', fs.existsSync(renamedLeaf.folderPath));
-    check('old folder no longer exists', !fs.existsSync(target.folderPath));
+    check(
+      'tile folder uses tile1 name',
+      path.basename(renamedLeaf.folderPath) === 'tile1'
+    );
+    check('tile folder exists on disk', fs.existsSync(renamedLeaf.folderPath));
 
     // 5. Remove a tile -> sibling collapses, count drops.
     leaves = await evalInPage(

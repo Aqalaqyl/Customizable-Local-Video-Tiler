@@ -20,13 +20,23 @@ async function evalInPage(win, fn, ...args) {
   return win.webContents.executeJavaScript(code, true);
 }
 
-async function waitForTileFolder(win) {
+async function waitForBoot(win) {
   for (let i = 0; i < 100; i++) {
-    const leaves = await evalInPage(win, () => window.__lvt.leaves());
-    if (leaves[0] && leaves[0].folderPath) return leaves[0].folderPath;
+    const ready = await evalInPage(win, () => {
+      if (!(window.__lvt && window.__lvt.state && window.__lvt.state.root)) return false;
+      const folder = window.__lvt.leaves()[0]?.folderPath;
+      return !!(folder && /[/\\]display\d+[/\\]tile\d+/.test(folder));
+    });
+    if (ready) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error('tile folder not ready');
+  throw new Error('renderer did not boot');
+}
+
+async function waitForTileFolder(win) {
+  const leaves = await evalInPage(win, () => window.__lvt.leaves());
+  if (!leaves[0]?.folderPath) throw new Error('tile folder not ready');
+  return leaves[0].folderPath;
 }
 
 async function waitForPlaylistItems(win, count, tileId) {
@@ -40,6 +50,7 @@ async function waitForPlaylistItems(win, count, tileId) {
     if (n >= count) return;
     await new Promise((r) => setTimeout(r, 100));
   }
+  throw new Error(`expected ${count} playlist items`);
 }
 
 app.whenReady().then(async () => {
@@ -52,17 +63,21 @@ app.whenReady().then(async () => {
     if (win.webContents.isLoading()) {
       await new Promise((res) => win.webContents.once('did-finish-load', res));
     }
-    for (let i = 0; i < 100; i++) {
-      const ready = await evalInPage(
-        win,
-        () => !!(window.__lvt && window.__lvt.state && window.__lvt.state.root)
-      );
-      if (ready) break;
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    await waitForBoot(win);
 
     const folder = await waitForTileFolder(win);
-    const tileId = await evalInPage(win, () => window.__lvt.leaves()[0].id);
+    check('tile folder exists on disk before writing media', fs.existsSync(folder));
+    for (const name of fs.readdirSync(folder)) {
+      fs.unlinkSync(path.join(folder, name));
+    }
+    const tileId = await evalInPage(
+      win,
+      (folderPath) => {
+        const leaf = window.__lvt.leaves().find((l) => l.folderPath === folderPath);
+        return leaf ? leaf.id : window.__lvt.leaves()[0].id;
+      },
+      folder
+    );
 
     // Drop two fake media files into the tile folder.
     fs.writeFileSync(path.join(folder, 'b-second.mp4'), 'x');
