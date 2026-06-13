@@ -93,7 +93,8 @@ function serialize(node) {
       type: 'leaf',
       name: node.name,
       folderPath: node.folderPath,
-      currentVideo: node.currentVideo || null
+      currentVideo: node.currentVideo || null,
+      loopVideo: !!node.loopVideo
     };
   }
   return {
@@ -113,7 +114,8 @@ function normalize(node) {
       type: 'leaf',
       name: node.name || 'Untitled',
       folderPath: node.folderPath || null,
-      currentVideo: node.currentVideo || null
+      currentVideo: node.currentVideo || null,
+      loopVideo: !!node.loopVideo
     };
   }
   return {
@@ -222,6 +224,10 @@ function renderLeaf(node) {
   video.className = 'tile-video';
   video.controls = true;
   video.preload = 'metadata';
+  video.addEventListener('ended', () => {
+    if (node.loopVideo) return;
+    playNextInPlaylist(node, tile, video);
+  });
   media.appendChild(video);
 
   const empty = document.createElement('div');
@@ -276,6 +282,11 @@ function renderLeaf(node) {
     e.stopPropagation();
     tile.classList.toggle('show-playlist');
   });
+  const loopCtl = controlButton('🔁', 'Loop current video', (e) => {
+    e.stopPropagation();
+    toggleLoopVideo(node, tile, video, loopCtl);
+  });
+  loopCtl.classList.toggle('active', !!node.loopVideo);
   const openCtl = controlButton('⮳', 'Open folder', (e) => {
     e.stopPropagation();
     api.openFolder(node.folderPath);
@@ -286,7 +297,7 @@ function renderLeaf(node) {
   });
   delCtl.classList.add('danger');
 
-  controls.append(renameCtl, addCtl, listCtl, openCtl, delCtl);
+  controls.append(renameCtl, addCtl, listCtl, loopCtl, openCtl, delCtl);
   tile.appendChild(controls);
 
   // --- edit-mode split overlay ---
@@ -358,6 +369,7 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
 
 function setActive(node, tile, video, filePath, autoplay) {
   node.currentVideo = filePath;
+  video.loop = !!node.loopVideo;
   video.src = api.toFileURL(filePath);
   if (autoplay) {
     video.play().catch(() => {});
@@ -370,6 +382,21 @@ function setActive(node, tile, video, filePath, autoplay) {
 
 function playFile(node, tile, video, filePath) {
   setActive(node, tile, video, filePath, true);
+}
+
+function playNextInPlaylist(node, tile, video) {
+  const files = node._files || [];
+  if (!files.length || node.loopVideo) return;
+  const idx = files.findIndex((f) => f.path === node.currentVideo);
+  if (idx < 0 || idx >= files.length - 1) return;
+  playFile(node, tile, video, files[idx + 1].path);
+}
+
+function toggleLoopVideo(node, tile, video, button) {
+  node.loopVideo = !node.loopVideo;
+  video.loop = node.loopVideo;
+  if (button) button.classList.toggle('active', node.loopVideo);
+  scheduleSave();
 }
 
 /* ------------------------------------------------------------------ */

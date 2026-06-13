@@ -343,6 +343,12 @@ tile):
 - Seek bar
 - Volume
 
+When a video finishes, the tile **automatically plays the next item** in its
+playlist. At the end of the list, playback stops.
+
+Click **🔁** in the tile controls to **loop the current video** instead of
+advancing through the playlist. The button highlights while loop is on.
+
 > **Tip:** When you stop using the mouse and keyboard, the controls fade away
 > automatically so only the video picture remains. See
 > [section 10](#10-focus-mode--minimalist-auto-hiding-interface).
