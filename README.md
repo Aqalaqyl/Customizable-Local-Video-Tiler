@@ -115,8 +115,9 @@ Hover any tile to see its name badge — it always reflects the matching folder.
 ### 4. Watch & listen
 
 Click **☰** on a tile to open its playlist, then click any item to play it.
-When a video ends, the next playlist item plays automatically. Use **🔁** to loop
-the current file instead. Multiple tiles can play at once, so you can monitor
+When a video ends, the next playlist item plays automatically. A single-video
+playlist repeats that file. Use **🔁** to loop the current file when multiple
+videos are in the folder. Multiple tiles can play at once, so you can monitor
 several videos side by side or keep audio going in one pane while watching another.
 
 ### 5. Focus on your videos
@@ -134,8 +135,8 @@ video wall across your entire screen. Press `F11` again to exit.
 
 Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
 **Present**. Each display runs its own tile grid fullscreen with tile folders
-under `{library}/displays/{display-id}/`, so the same tile names on different
-monitors do not collide. Move the mouse on any display to reveal **✎ Edit Layout**
+under `{library}/displays/1/` through `{library}/displays/4/` (one folder per
+monitor slot), so the same tile names on different monitors do not collide. Move the mouse on any display to reveal **✎ Edit Layout**
 (`Ctrl/Cmd+E`) and edit that screen’s tiles directly. Press **`Escape`** or click
 **Stop** on any presenter to end presentation, or **`Ctrl+Q`** / **Quit** to exit
 the app.

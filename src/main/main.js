@@ -6,7 +6,8 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const {
   sortDisplaysInGridOrder,
-  arrangeDisplays
+  arrangeDisplays,
+  assignDisplaySlots
 } = require('./displays');
 const { resolveLibraryRoot, pathWithinRoot } = require('./library-paths');
 const {
@@ -183,6 +184,7 @@ function getPresenterPayload(win) {
     layout: assignment ? assignment.layoutSnapshot : getActiveLayoutTree(),
     libraryPath: getLibraryPath(),
     displayId: assignment ? assignment.displayId : null,
+    displaySlot: assignment ? assignment.displaySlot : null,
     layoutId: assignment ? assignment.layoutId : null,
     layoutName: assignment ? assignment.layoutName : null,
     displayLabel: assignment ? assignment.displayLabel : null
@@ -288,6 +290,7 @@ function createPresenterWindow(display, assignment) {
         count: displaySession.windows.length,
         assignments: displaySession.assignments.map((a) => ({
           displayId: a.displayId,
+          displaySlot: a.displaySlot,
           layoutId: a.layoutId,
           layoutName: a.layoutName
         }))
@@ -307,6 +310,14 @@ function startDisplaySession(assignmentsInput) {
   }
 
   const resolved = [];
+  const slotDisplays = [];
+  for (const item of assignments) {
+    const display = findDisplayById(item.displayId);
+    if (!display) continue;
+    slotDisplays.push(display);
+  }
+  const slotMap = assignDisplaySlots(slotDisplays);
+
   for (const item of assignments) {
     const display = findDisplayById(item.displayId);
     if (!display) continue;
@@ -315,12 +326,14 @@ function startDisplaySession(assignmentsInput) {
     if (!entry) {
       return { ok: false, error: `Layout not found for display ${display.label || item.displayId}` };
     }
+    const displaySlot = slotMap.get(String(item.displayId)) || resolved.length + 1;
     resolved.push({
       displayId: String(item.displayId),
+      displaySlot,
       layoutId: entry.id,
       layoutName: entry.name,
       layoutSnapshot: entry.layout,
-      displayLabel: display.label || `Display ${resolved.length + 1}`,
+      displayLabel: display.label || `Display ${displaySlot}`,
       display
     });
   }
@@ -338,6 +351,7 @@ function startDisplaySession(assignmentsInput) {
 
   const statusAssignments = resolved.map((a) => ({
     displayId: a.displayId,
+    displaySlot: a.displaySlot,
     layoutId: a.layoutId,
     layoutName: a.layoutName,
     displayLabel: a.displayLabel
@@ -445,9 +459,9 @@ ipcMain.handle('library:choose', async () => {
 
 // Ensure a folder exists for a tile. Renames the existing folder when the
 // tile's name changes so the folder on disk always matches the tile name.
-// When displayId is set, tile folders live under {library}/displays/{displayId}/.
-ipcMain.handle('folder:ensure', async (_evt, { name, currentPath, displayId }) => {
-  const libraryPath = resolveLibraryRoot(getLibraryPath(), displayId);
+// When displaySlot is set (1–4), tile folders live under {library}/displays/{slot}/.
+ipcMain.handle('folder:ensure', async (_evt, { name, currentPath, displaySlot }) => {
+  const libraryPath = resolveLibraryRoot(getLibraryPath(), displaySlot);
   fs.mkdirSync(libraryPath, { recursive: true });
 
   if (currentPath && !pathWithinRoot(currentPath, libraryPath)) {
@@ -718,11 +732,23 @@ ipcMain.handle('displays:status', async () => {
     count: displaySession.windows.length,
     assignments: displaySession.assignments.map((a) => ({
       displayId: a.displayId,
+      displaySlot: a.displaySlot,
       layoutId: a.layoutId,
       layoutName: a.layoutName,
       displayLabel: a.displayLabel
     }))
   };
+});
+
+ipcMain.handle('displays:assignSlots', async (_evt, { displayIds }) => {
+  const ids = Array.isArray(displayIds) ? displayIds : [];
+  const displays = ids.map((id) => findDisplayById(id)).filter(Boolean);
+  const slotMap = assignDisplaySlots(displays);
+  const slots = {};
+  for (const [id, slot] of slotMap.entries()) {
+    slots[id] = slot;
+  }
+  return slots;
 });
 
 ipcMain.handle('displays:getAssignments', async () => {
@@ -805,6 +831,7 @@ app.on('before-quit', () => {
 module.exports = {
   sortDisplaysInGridOrder,
   arrangeDisplays,
+  assignDisplaySlots,
   describeDisplay,
   validateLayoutFile,
   resolveLibraryRoot,

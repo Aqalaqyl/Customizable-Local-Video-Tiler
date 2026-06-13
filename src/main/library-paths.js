@@ -3,10 +3,19 @@
 const path = require('path');
 const fs = require('fs');
 
-function resolveLibraryRoot(baseLibraryPath, displayId) {
+const MAX_DISPLAY_SLOTS = 4;
+
+function normalizeDisplaySlot(displaySlot) {
+  const slot = Number(displaySlot);
+  if (!Number.isInteger(slot) || slot < 1 || slot > MAX_DISPLAY_SLOTS) return null;
+  return slot;
+}
+
+function resolveLibraryRoot(baseLibraryPath, displaySlot) {
   const base = String(baseLibraryPath || '').trim();
-  if (!displayId) return base;
-  const root = path.join(base, 'displays', String(displayId));
+  const slot = normalizeDisplaySlot(displaySlot);
+  if (!slot) return base;
+  const root = path.join(base, 'displays', String(slot));
   try {
     fs.mkdirSync(root, { recursive: true });
   } catch (e) {
@@ -22,6 +31,8 @@ function pathWithinRoot(filePath, root) {
 }
 
 module.exports = {
+  MAX_DISPLAY_SLOTS,
+  normalizeDisplaySlot,
   resolveLibraryRoot,
   pathWithinRoot
 };

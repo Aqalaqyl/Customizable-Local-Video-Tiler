@@ -7,8 +7,12 @@ contextBridge.exposeInMainWorld('api', {
   getLibrary: () => ipcRenderer.invoke('library:get'),
   chooseLibrary: () => ipcRenderer.invoke('library:choose'),
 
-  ensureFolder: (name, currentPath, displayId) =>
-    ipcRenderer.invoke('folder:ensure', { name, currentPath, displayId: displayId ?? null }),
+  ensureFolder: (name, currentPath, displaySlot) =>
+    ipcRenderer.invoke('folder:ensure', {
+      name,
+      currentPath,
+      displaySlot: displaySlot ?? null
+    }),
   deleteFolder: (folderPath, removeFiles) =>
     ipcRenderer.invoke('folder:delete', { folderPath, removeFiles }),
   listVideos: (folderPath) =>
@@ -41,6 +45,8 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   listDisplays: () => ipcRenderer.invoke('displays:list'),
+  assignDisplaySlots: (displayIds) =>
+    ipcRenderer.invoke('displays:assignSlots', { displayIds }),
   getDisplayStatus: () => ipcRenderer.invoke('displays:status'),
   getDisplayAssignments: () => ipcRenderer.invoke('displays:getAssignments'),
   saveDisplayAssignments: (map) =>

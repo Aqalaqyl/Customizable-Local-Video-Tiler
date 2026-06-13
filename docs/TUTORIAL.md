@@ -144,8 +144,9 @@ You are ready to add media or customize the layout.
 
 The **library** is the root directory where tile folders live. Each tile gets its
 own subfolder inside the library. When you present on multiple displays, each
-monitor also gets its own folder under `{library}/displays/{display-id}/`, so
-two screens can use the same tile names without sharing folders.
+monitor also gets its own numbered folder under `{library}/displays/1/` through
+`{library}/displays/4/` (assigned in grid order), so two screens can use the
+same tile names without sharing folders.
 
 ### Step 5.1 — Open the library picker
 
@@ -344,10 +345,12 @@ tile):
 - Volume
 
 When a video finishes, the tile **automatically plays the next item** in its
-playlist. At the end of the list, playback stops.
+playlist. At the end of the list, playback stops. A tile with **only one video**
+repeats that file automatically.
 
 Click **🔁** in the tile controls to **loop the current video** instead of
-advancing through the playlist. The button highlights while loop is on.
+advancing through the playlist (useful when multiple videos are in the folder).
+The button highlights while loop is on.
 
 > **Tip:** When you stop using the mouse and keyboard, the controls fade away
 > automatically so only the video picture remains. See

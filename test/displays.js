@@ -2,7 +2,8 @@
 
 const {
   sortDisplaysInGridOrder,
-  arrangeDisplays
+  arrangeDisplays,
+  assignDisplaySlots
 } = require('../src/main/displays');
 
 const results = [];
@@ -48,6 +49,10 @@ const threeRow = arrangeDisplays([
   display(3840, 0, 1920, 1080, 'c')
 ]);
 check('three in a row -> 3x1 grid', threeRow.cols === 3 && threeRow.rows === 1);
+
+const slotMap = assignDisplaySlots(sideBySide);
+check('assigns slot 1 to left display', slotMap.get('a') === 1);
+check('assigns slot 2 to right display', slotMap.get('b') === 2);
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\nRESULT ${results.length - failed}/${results.length} passed`);

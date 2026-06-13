@@ -25,6 +25,7 @@ const state = {
   layoutId: null,
   layoutName: 'Default',
   displayId: null,
+  displaySlot: null,
   displayLabel: ''
 };
 
@@ -132,9 +133,9 @@ function normalize(node) {
 /* ------------------------------------------------------------------ */
 
 function displayLibraryRoot() {
-  if (!state.displayId || !state.libraryPath) return null;
+  if (!state.displaySlot || !state.libraryPath) return null;
   const base = state.libraryPath.replace(/[/\\]+$/, '');
-  return `${base}/displays/${state.displayId}`;
+  return `${base}/displays/${state.displaySlot}`;
 }
 
 function folderUnderDisplayRoot(folderPath) {
@@ -150,7 +151,7 @@ function folderUnderDisplayRoot(folderPath) {
 }
 
 function rebindFoldersForDisplay() {
-  if (!state.displayId) return;
+  if (!state.displaySlot) return;
   forEachLeaf(state.root, (leaf) => {
     if (!folderUnderDisplayRoot(leaf.folderPath)) {
       leaf.folderPath = null;
@@ -159,7 +160,7 @@ function rebindFoldersForDisplay() {
 }
 
 async function ensureLeafFolder(node) {
-  const res = await api.ensureFolder(node.name, node.folderPath, state.displayId);
+  const res = await api.ensureFolder(node.name, node.folderPath, state.displaySlot);
   if (res) {
     node.folderPath = res.path;
     node.name = res.name;
@@ -225,7 +226,7 @@ function renderLeaf(node) {
   video.controls = true;
   video.preload = 'metadata';
   video.addEventListener('ended', () => {
-    if (node.loopVideo) return;
+    if (shouldLoopVideo(node)) return;
     playNextInPlaylist(node, tile, video);
   });
   media.appendChild(video);
@@ -367,9 +368,15 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
   setActive(node, tile, video, restore, state.presenterMode && !state.editMode);
 }
 
+function shouldLoopVideo(node) {
+  const files = node._files || [];
+  if (files.length === 1) return true;
+  return !!node.loopVideo;
+}
+
 function setActive(node, tile, video, filePath, autoplay) {
   node.currentVideo = filePath;
-  video.loop = !!node.loopVideo;
+  video.loop = shouldLoopVideo(node);
   video.src = api.toFileURL(filePath);
   if (autoplay) {
     video.play().catch(() => {});
@@ -386,7 +393,7 @@ function playFile(node, tile, video, filePath) {
 
 function playNextInPlaylist(node, tile, video) {
   const files = node._files || [];
-  if (!files.length || node.loopVideo) return;
+  if (!files.length || shouldLoopVideo(node)) return;
   const idx = files.findIndex((f) => f.path === node.currentVideo);
   if (idx < 0 || idx >= files.length - 1) return;
   playFile(node, tile, video, files[idx + 1].path);
@@ -394,7 +401,7 @@ function playNextInPlaylist(node, tile, video) {
 
 function toggleLoopVideo(node, tile, video, button) {
   node.loopVideo = !node.loopVideo;
-  video.loop = node.loopVideo;
+  video.loop = shouldLoopVideo(node);
   if (button) button.classList.toggle('active', node.loopVideo);
   scheduleSave();
 }
@@ -561,7 +568,7 @@ function startRename(node, tile, badge) {
     input.remove();
     unlockUi();
     if (save && newName && newName !== node.name) {
-      const res = await api.ensureFolder(newName, node.folderPath, state.displayId);
+      const res = await api.ensureFolder(newName, node.folderPath, state.displaySlot);
       if (res) {
         node.name = res.name;
         node.folderPath = res.path;
@@ -636,6 +643,7 @@ if (!isPresenter) {
     if (chosen) {
       state.libraryPath = chosen;
       state.displayId = null;
+      state.displaySlot = null;
       state.displayLabel = '';
       updateLibraryLabel();
       // Re-bind every tile to a folder under the new library root.
@@ -769,6 +777,16 @@ let availableDisplays = [];
 let savedLayouts = [];
 const selectedDisplayIds = new Set();
 const displayLayoutAssignments = new Map();
+const displaySlotMap = new Map();
+
+async function refreshDisplaySlotMap() {
+  displaySlotMap.clear();
+  if (!selectedDisplayIds.size) return;
+  const slots = await api.assignDisplaySlots([...selectedDisplayIds]);
+  for (const [id, slot] of Object.entries(slots)) {
+    displaySlotMap.set(id, slot);
+  }
+}
 
 function formatDisplaySize(bounds) {
   return `${bounds.width}×${bounds.height}`;
@@ -818,6 +836,7 @@ function renderDisplaysList() {
     row.className = 'display-row';
     const checked = selectedDisplayIds.has(d.id);
     if (checked) row.classList.add('selected');
+    const slot = displaySlotMap.get(String(d.id));
 
     const input = document.createElement('input');
     input.type = 'checkbox';
@@ -845,10 +864,17 @@ function renderDisplaysList() {
     meta.className = 'display-meta';
     const title = document.createElement('div');
     title.className = 'display-title';
-    title.textContent = d.label;
+    title.textContent = slot ? `Display ${slot} · ${d.label}` : d.label;
     const detail = document.createElement('div');
     detail.className = 'display-detail';
-    detail.textContent = `${formatDisplaySize(d.bounds)}${d.primary ? ' · Primary' : ''}`;
+    const folderHint = slot ? `Folder: displays/${slot}/` : '';
+    detail.textContent = [
+      formatDisplaySize(d.bounds),
+      d.primary ? 'Primary' : '',
+      folderHint
+    ]
+      .filter(Boolean)
+      .join(' · ');
     meta.append(title, detail);
 
     const actions = document.createElement('div');
@@ -895,11 +921,14 @@ async function editDisplayLayout(displayId, displayLabel) {
     toast(res.error || 'Could not load layout');
     return;
   }
+  await refreshDisplaySlotMap();
   state.displayId = String(displayId);
+  state.displaySlot = displaySlotMap.get(String(displayId)) || null;
   state.displayLabel = displayLabel || '';
   await applyLayoutProfile(res);
   displaysDialog.close();
-  toast(`Editing “${res.name}” for ${displayLabel}`);
+  const slotLabel = state.displaySlot ? `Display ${state.displaySlot}` : displayLabel;
+  toast(`Editing “${res.name}” for ${slotLabel}`);
 }
 
 async function refreshDisplaysList() {
@@ -933,6 +962,7 @@ async function refreshDisplaysList() {
     }
   }
 
+  await refreshDisplaySlotMap();
   renderDisplaysList();
   updateDisplaysLabel(status);
 }
@@ -1128,6 +1158,7 @@ async function applyLayoutProfile(profile) {
 async function switchToLayout(id) {
   await flushSave();
   state.displayId = null;
+  state.displaySlot = null;
   state.displayLabel = '';
   const res = await api.loadLayoutProfile(id);
   if (!res.ok) {
@@ -1149,6 +1180,7 @@ async function createNewLayout() {
   const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
   await flushSave();
   state.displayId = null;
+  state.displaySlot = null;
   state.displayLabel = '';
   const created = await api.createLayout(name);
   const res = await api.loadLayoutProfile(created.id);
@@ -1183,6 +1215,7 @@ async function exportCurrentLayout() {
 async function importLayoutFile() {
   await flushSave();
   state.displayId = null;
+  state.displaySlot = null;
   state.displayLabel = '';
   const res = await api.importLayout();
   if (res.canceled) return;
@@ -1247,6 +1280,7 @@ async function applySyncPayload(payload) {
   if (state.presenterMode && state.editMode) return;
   state.libraryPath = payload.libraryPath;
   state.displayId = payload.displayId ? String(payload.displayId) : null;
+  state.displaySlot = payload.displaySlot || null;
   state.layoutId = payload.layoutId || state.layoutId;
   state.layoutName = payload.layoutName || state.layoutName;
   state.displayLabel = payload.displayLabel || state.displayLabel;
@@ -1323,7 +1357,7 @@ window.__lvt = {
   },
   async rename(id, name) {
     const node = findNode(state.root, id);
-    const res = await api.ensureFolder(name, node.folderPath, state.displayId);
+    const res = await api.ensureFolder(name, node.folderPath, state.displaySlot);
     if (res) {
       node.name = res.name;
       node.folderPath = res.path;
