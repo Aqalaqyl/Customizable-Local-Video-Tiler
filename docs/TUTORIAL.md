@@ -142,8 +142,10 @@ You are ready to add media or customize the layout.
 
 ## 5. Choose your library folder
 
-The **library** is the root directory where every tile's folder lives. Each tile
-gets its own subfolder inside the library.
+The **library** is the root directory where tile folders live. Each tile gets its
+own subfolder inside the library. When you present on multiple displays, each
+monitor also gets its own folder under `{library}/displays/{display-id}/`, so
+two screens can use the same tile names without sharing folders.
 
 ### Step 5.1 — Open the library picker
 
@@ -341,6 +343,12 @@ tile):
 - Seek bar
 - Volume
 
+When a video finishes, the tile **automatically plays the next item** in its
+playlist. At the end of the list, playback stops.
+
+Click **🔁** in the tile controls to **loop the current video** instead of
+advancing through the playlist. The button highlights while loop is on.
+
 > **Tip:** When you stop using the mouse and keyboard, the controls fade away
 > automatically so only the video picture remains. See
 > [section 10](#10-focus-mode--minimalist-auto-hiding-interface).
@@ -503,10 +511,17 @@ While presenting, move the mouse on any display to reveal its toolbar, then:
 The UI auto-hides after a few seconds of inactivity so you can keep watching.
 Press **`Ctrl/Cmd + E`** anytime to edit that screen’s layout again.
 
-### Step 12.6 — Stop presenting
+### Step 12.6 — Stop presenting or quit
 
-- Click **🖥 Displays** → **Stop**
-- Press **`Escape`** while the main window is focused
+From any **presenter** window (fullscreen on a monitor):
+
+- Click **Stop** in the toolbar (or press **`Escape`** — exits Edit Layout first if active)
+- Click **Quit** to close the entire app (or press **`Ctrl+Q`** / **`Cmd+Q`**)
+
+From the **main** window:
+
+- Click **🖥 Displays** → **Stop**, or press **`Escape`**
+- While presenting, a **Quit** button appears in the toolbar (`Ctrl+Q` / `Cmd+Q` works anytime)
 
 ### Multi-display vs. single-monitor fullscreen
 
@@ -526,7 +541,7 @@ Press **`Ctrl/Cmd + E`** anytime to edit that screen’s layout again.
 3. Save each layout (▤ Layouts → Save)
 4. Click Present
 5. Each monitor shows its own tile grid fullscreen
-6. Press Escape when finished
+6. Press **Escape** or click **Stop** on any presenter when finished
 ```
 
 ---
@@ -589,7 +604,8 @@ remaining profile or delete the layout that is currently active (switch first).
 | ------ | -------- |
 | Toggle Edit Layout mode | `Ctrl+E` / `Cmd+E` |
 | Toggle fullscreen | `F11` |
-| Stop multi-display presentation | `Escape` |
+| Stop multi-display presentation | `Escape` (presenter or main window) |
+| Quit application | `Ctrl+Q` / `Cmd+Q` |
 | Horizontal split preview (in Edit mode) | Hold `Shift` while hovering a tile |
 | Confirm rename | `Enter` |
 | Cancel rename | `Escape` |

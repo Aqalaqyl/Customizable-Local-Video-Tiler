@@ -72,6 +72,40 @@ app.whenReady().then(async () => {
       'default loaded video is the first file',
       decodeURIComponent(videoSrc || '').endsWith('a-first.webm')
     );
+
+    await evalInPage(win, () => {
+      document.querySelector('.tile-video').dispatchEvent(new Event('ended'));
+    });
+    await new Promise((r) => setTimeout(r, 150));
+
+    const activeAfterEnd = await evalInPage(
+      win,
+      () => document.querySelector('.playlist-item.active .pi-name')?.textContent || ''
+    );
+    check('playlist autoplays the next video when one ends', activeAfterEnd === 'b-second.mp4');
+
+    await evalInPage(win, () => {
+      const btn = [...document.querySelectorAll('.tile-controls button')].find(
+        (b) => b.title === 'Loop current video'
+      );
+      btn.click();
+    });
+    const loopEnabled = await evalInPage(
+      win,
+      () => document.querySelector('.tile-video').loop
+    );
+    check('loop toggle enables video.loop', loopEnabled === true);
+
+    await evalInPage(win, () => {
+      document.querySelector('.tile-video').dispatchEvent(new Event('ended'));
+    });
+    await new Promise((r) => setTimeout(r, 150));
+
+    const activeWithLoop = await evalInPage(
+      win,
+      () => document.querySelector('.playlist-item.active .pi-name')?.textContent || ''
+    );
+    check('loop mode does not advance to the next playlist item', activeWithLoop === 'b-second.mp4');
   } catch (err) {
     console.log('FAIL - exception:', err && err.stack ? err.stack : String(err));
     results.push({ name: 'no exception', ok: false });

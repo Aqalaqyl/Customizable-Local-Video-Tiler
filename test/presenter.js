@@ -84,6 +84,15 @@ app.whenReady().then(async () => {
       'presenter has edit toolbar',
       await evalInPage(presenter, () => !!document.getElementById('presenter-edit-btn'))
     );
+    check(
+      'presenter has stop and quit controls',
+      await evalInPage(
+        presenter,
+        () =>
+          !!document.getElementById('presenter-stop-btn') &&
+          !!document.getElementById('presenter-quit-btn')
+      )
+    );
     if (presenter.webContents.isLoading()) {
       await new Promise((res) => presenter.webContents.once('did-finish-load', res));
     }
@@ -99,6 +108,27 @@ app.whenReady().then(async () => {
     }
     check('presenter renders at least one tile', tileCount >= 1);
 
+    const displayId = String(displays[0].id);
+    const presenterFolders = await evalInPage(presenter, () => window.__lvt.leaves());
+    const displaySegment = `${path.sep}displays${path.sep}${displayId}`;
+    check(
+      'presenter tile folders are scoped to the display',
+      presenterFolders.length >= 1 &&
+        presenterFolders.every((leaf) => leaf.folderPath.includes(displaySegment))
+    );
+
+    const scopedFolders = await evalInPage(win, async () => {
+      const a = await window.api.ensureFolder('OverlapTest', null, 'display-a');
+      const b = await window.api.ensureFolder('OverlapTest', null, 'display-b');
+      return [a.path, b.path];
+    });
+    check(
+      'same tile name on different displays uses separate folders',
+      scopedFolders[0] !== scopedFolders[1] &&
+        scopedFolders[0].includes(`${path.sep}displays${path.sep}display-a`) &&
+        scopedFolders[1].includes(`${path.sep}displays${path.sep}display-b`)
+    );
+
     const stageSize = await evalInPage(presenter, () => {
       const stage = document.getElementById('stage');
       return stage
@@ -107,7 +137,11 @@ app.whenReady().then(async () => {
     });
     check('presenter stage has non-zero size', stageSize.width > 0 && stageSize.height > 0);
 
-    await evalInPage(win, () => window.api.stopDisplays());
+    const stopFromPresenter = await evalInPage(presenter, async () => {
+      await window.api.stopDisplays();
+      return true;
+    });
+    check('presenter can stop session via API', stopFromPresenter === true);
   } catch (err) {
     console.log('FAIL - exception:', err && err.stack ? err.stack : String(err));
     results.push({ name: 'no exception', ok: false });

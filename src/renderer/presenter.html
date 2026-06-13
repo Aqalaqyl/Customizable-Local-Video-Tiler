@@ -26,12 +26,18 @@
         <button id="presenter-edit-btn" class="btn">
           <span class="ico">✎</span> Edit Layout
         </button>
+        <button id="presenter-stop-btn" class="btn danger" type="button" title="Stop presentation (Escape)">
+          <span class="ico">■</span> Stop
+        </button>
+        <button id="presenter-quit-btn" class="btn ghost" type="button" title="Quit application (Ctrl+Q)">
+          Quit
+        </button>
       </div>
     </header>
     <div id="stage-viewport">
       <main id="stage"></main>
     </div>
-    <div id="wake-hint" aria-hidden="true">Move mouse or press a key to show controls</div>
+    <div id="wake-hint" aria-hidden="true">Move mouse — Esc to stop · Ctrl+Q to quit</div>
     <div id="toast" class="toast hidden"></div>
     <script type="module" src="renderer.js"></script>
   </body>

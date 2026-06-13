@@ -24,6 +24,7 @@ const state = {
   multiDisplayActive: false,
   layoutId: null,
   layoutName: 'Default',
+  displayId: null,
   displayLabel: ''
 };
 
@@ -31,6 +32,9 @@ const stage = document.getElementById('stage');
 const editBtn = document.getElementById('edit-btn') || document.getElementById('presenter-edit-btn');
 const editHint = document.getElementById('edit-hint') || document.getElementById('presenter-edit-hint');
 const presenterTitle = document.getElementById('presenter-title');
+const presenterStopBtn = document.getElementById('presenter-stop-btn');
+const presenterQuitBtn = document.getElementById('presenter-quit-btn');
+const quitAppBtn = document.getElementById('quit-app-btn');
 const libraryBtn = document.getElementById('library-btn');
 const libraryLabel = document.getElementById('library-label');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -89,7 +93,8 @@ function serialize(node) {
       type: 'leaf',
       name: node.name,
       folderPath: node.folderPath,
-      currentVideo: node.currentVideo || null
+      currentVideo: node.currentVideo || null,
+      loopVideo: !!node.loopVideo
     };
   }
   return {
@@ -109,7 +114,8 @@ function normalize(node) {
       type: 'leaf',
       name: node.name || 'Untitled',
       folderPath: node.folderPath || null,
-      currentVideo: node.currentVideo || null
+      currentVideo: node.currentVideo || null,
+      loopVideo: !!node.loopVideo
     };
   }
   return {
@@ -125,8 +131,35 @@ function normalize(node) {
 /* Folder syncing                                                      */
 /* ------------------------------------------------------------------ */
 
+function displayLibraryRoot() {
+  if (!state.displayId || !state.libraryPath) return null;
+  const base = state.libraryPath.replace(/[/\\]+$/, '');
+  return `${base}/displays/${state.displayId}`;
+}
+
+function folderUnderDisplayRoot(folderPath) {
+  const root = displayLibraryRoot();
+  if (!root || !folderPath) return false;
+  const norm = (p) => p.replace(/\\/g, '/').toLowerCase();
+  const normalizedRoot = norm(root);
+  const normalizedPath = norm(folderPath);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(`${normalizedRoot}/`)
+  );
+}
+
+function rebindFoldersForDisplay() {
+  if (!state.displayId) return;
+  forEachLeaf(state.root, (leaf) => {
+    if (!folderUnderDisplayRoot(leaf.folderPath)) {
+      leaf.folderPath = null;
+    }
+  });
+}
+
 async function ensureLeafFolder(node) {
-  const res = await api.ensureFolder(node.name, node.folderPath);
+  const res = await api.ensureFolder(node.name, node.folderPath, state.displayId);
   if (res) {
     node.folderPath = res.path;
     node.name = res.name;
@@ -135,6 +168,7 @@ async function ensureLeafFolder(node) {
 }
 
 async function ensureAllFolders() {
+  rebindFoldersForDisplay();
   const leaves = [];
   forEachLeaf(state.root, (l) => leaves.push(l));
   for (const leaf of leaves) {
@@ -190,6 +224,10 @@ function renderLeaf(node) {
   video.className = 'tile-video';
   video.controls = true;
   video.preload = 'metadata';
+  video.addEventListener('ended', () => {
+    if (node.loopVideo) return;
+    playNextInPlaylist(node, tile, video);
+  });
   media.appendChild(video);
 
   const empty = document.createElement('div');
@@ -244,6 +282,11 @@ function renderLeaf(node) {
     e.stopPropagation();
     tile.classList.toggle('show-playlist');
   });
+  const loopCtl = controlButton('🔁', 'Loop current video', (e) => {
+    e.stopPropagation();
+    toggleLoopVideo(node, tile, video, loopCtl);
+  });
+  loopCtl.classList.toggle('active', !!node.loopVideo);
   const openCtl = controlButton('⮳', 'Open folder', (e) => {
     e.stopPropagation();
     api.openFolder(node.folderPath);
@@ -254,7 +297,7 @@ function renderLeaf(node) {
   });
   delCtl.classList.add('danger');
 
-  controls.append(renameCtl, addCtl, listCtl, openCtl, delCtl);
+  controls.append(renameCtl, addCtl, listCtl, loopCtl, openCtl, delCtl);
   tile.appendChild(controls);
 
   // --- edit-mode split overlay ---
@@ -326,6 +369,7 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
 
 function setActive(node, tile, video, filePath, autoplay) {
   node.currentVideo = filePath;
+  video.loop = !!node.loopVideo;
   video.src = api.toFileURL(filePath);
   if (autoplay) {
     video.play().catch(() => {});
@@ -338,6 +382,21 @@ function setActive(node, tile, video, filePath, autoplay) {
 
 function playFile(node, tile, video, filePath) {
   setActive(node, tile, video, filePath, true);
+}
+
+function playNextInPlaylist(node, tile, video) {
+  const files = node._files || [];
+  if (!files.length || node.loopVideo) return;
+  const idx = files.findIndex((f) => f.path === node.currentVideo);
+  if (idx < 0 || idx >= files.length - 1) return;
+  playFile(node, tile, video, files[idx + 1].path);
+}
+
+function toggleLoopVideo(node, tile, video, button) {
+  node.loopVideo = !node.loopVideo;
+  video.loop = node.loopVideo;
+  if (button) button.classList.toggle('active', node.loopVideo);
+  scheduleSave();
 }
 
 /* ------------------------------------------------------------------ */
@@ -502,7 +561,7 @@ function startRename(node, tile, badge) {
     input.remove();
     unlockUi();
     if (save && newName && newName !== node.name) {
-      const res = await api.ensureFolder(newName, node.folderPath);
+      const res = await api.ensureFolder(newName, node.folderPath, state.displayId);
       if (res) {
         node.name = res.name;
         node.folderPath = res.path;
@@ -576,6 +635,8 @@ if (!isPresenter) {
     const chosen = await api.chooseLibrary();
     if (chosen) {
       state.libraryPath = chosen;
+      state.displayId = null;
+      state.displayLabel = '';
       updateLibraryLabel();
       // Re-bind every tile to a folder under the new library root.
       forEachLeaf(state.root, (l) => {
@@ -600,15 +661,26 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     setEditMode(!state.editMode);
   }
-  if (!isPresenter) {
-    if (e.key === 'F11') {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
+    e.preventDefault();
+    quitApp();
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (state.editMode) {
       e.preventDefault();
-      toggleFullscreen();
+      setEditMode(false);
+      return;
     }
-    if (e.key === 'Escape' && state.multiDisplayActive) {
+    if (isPresenter || state.multiDisplayActive) {
       e.preventDefault();
       stopMultiDisplay();
+      return;
     }
+  }
+  if (!isPresenter && e.key === 'F11') {
+    e.preventDefault();
+    toggleFullscreen();
   }
 });
 
@@ -823,6 +895,8 @@ async function editDisplayLayout(displayId, displayLabel) {
     toast(res.error || 'Could not load layout');
     return;
   }
+  state.displayId = String(displayId);
+  state.displayLabel = displayLabel || '';
   await applyLayoutProfile(res);
   displaysDialog.close();
   toast(`Editing “${res.name}” for ${displayLabel}`);
@@ -867,6 +941,7 @@ function updateDisplaysLabel(status) {
   if (!displaysBtn || !displaysLabel) return;
   state.multiDisplayActive = !!status.active;
   displaysBtn.classList.toggle('active', status.active);
+  if (quitAppBtn) quitAppBtn.classList.toggle('hidden', !status.active);
   if (status.active) {
     displaysLabel.textContent = `${status.count} Display${status.count === 1 ? '' : 's'}`;
     displaysBtn.title = 'Multi-display presentation active — click to manage';
@@ -916,10 +991,18 @@ async function startMultiDisplay() {
 }
 
 async function stopMultiDisplay() {
+  await flushSave();
   const res = await api.stopDisplays();
-  updateDisplaysLabel(res);
-  displaysDialog.close();
-  toast('Multi-display presentation stopped');
+  if (!isPresenter) {
+    updateDisplaysLabel(res);
+    if (displaysDialog) displaysDialog.close();
+    toast('Multi-display presentation stopped');
+  }
+}
+
+async function quitApp() {
+  await flushSave();
+  await api.quitApp();
 }
 
 if (!isPresenter) {
@@ -927,10 +1010,16 @@ if (!isPresenter) {
   displaysCancelBtn.addEventListener('click', () => displaysDialog.close());
   displaysStartBtn.addEventListener('click', () => startMultiDisplay());
   displaysStopBtn.addEventListener('click', () => stopMultiDisplay());
+  quitAppBtn?.addEventListener('click', () => quitApp());
 
   displaysDialog.addEventListener('click', (e) => {
     if (e.target === displaysDialog) displaysDialog.close();
   });
+}
+
+if (isPresenter) {
+  presenterStopBtn?.addEventListener('click', () => stopMultiDisplay());
+  presenterQuitBtn?.addEventListener('click', () => quitApp());
 }
 
 /* ------------------------------------------------------------------ */
@@ -1038,6 +1127,8 @@ async function applyLayoutProfile(profile) {
 
 async function switchToLayout(id) {
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const res = await api.loadLayoutProfile(id);
   if (!res.ok) {
     toast(res.error || 'Could not load layout');
@@ -1057,6 +1148,8 @@ async function openLayoutsDialog() {
 async function createNewLayout() {
   const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const created = await api.createLayout(name);
   const res = await api.loadLayoutProfile(created.id);
   if (!res.ok) {
@@ -1089,6 +1182,8 @@ async function exportCurrentLayout() {
 
 async function importLayoutFile() {
   await flushSave();
+  state.displayId = null;
+  state.displayLabel = '';
   const res = await api.importLayout();
   if (res.canceled) return;
   if (!res.ok) {
@@ -1151,6 +1246,7 @@ function updatePresenterTitle() {
 async function applySyncPayload(payload) {
   if (state.presenterMode && state.editMode) return;
   state.libraryPath = payload.libraryPath;
+  state.displayId = payload.displayId ? String(payload.displayId) : null;
   state.layoutId = payload.layoutId || state.layoutId;
   state.layoutName = payload.layoutName || state.layoutName;
   state.displayLabel = payload.displayLabel || state.displayLabel;
@@ -1227,7 +1323,7 @@ window.__lvt = {
   },
   async rename(id, name) {
     const node = findNode(state.root, id);
-    const res = await api.ensureFolder(name, node.folderPath);
+    const res = await api.ensureFolder(name, node.folderPath, state.displayId);
     if (res) {
       node.name = res.name;
       node.folderPath = res.path;
