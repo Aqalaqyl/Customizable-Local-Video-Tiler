@@ -110,7 +110,7 @@ Each tile has a small toolbar (top-right, visible on hover):
 | ✎ | Rename the tile label (folder stays `tile#` on disk) |
 | ＋ | Add videos (copies selected files into this tile's folder) |
 | ☰ | Show/hide the playlist |
-| 🔁 | Loop the current video (instead of advancing through the playlist) |
+| 🔁 | Lock playback to the current video (off = continuous random shuffle) |
 | ⮳ | Open the tile's folder in your OS file manager |
 | ✕ | Remove the tile (edit-mode layout action) |
 
@@ -119,9 +119,8 @@ Hover any tile to see its name badge — it shows the tile label you chose.
 ### 4. Watch & listen
 
 Click **☰** on a tile to open its playlist, then click any item to play it.
-When a video ends, the next playlist item plays automatically. A single-video
-playlist repeats that file. Use **🔁** to loop the current file when multiple
-videos are in the folder. Multiple tiles can play at once, so you can monitor
+Playback **never stops** — when a video ends, another random file from the folder
+plays automatically. Use **🔁** to repeat the current file instead of shuffling.
 several videos side by side or keep audio going in one pane while watching another.
 
 ### 5. Focus on your videos

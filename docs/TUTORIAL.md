@@ -344,13 +344,12 @@ tile):
 - Seek bar
 - Volume
 
-When a video finishes, the tile **automatically plays the next item** in its
-playlist. At the end of the list, playback stops. A tile with **only one video**
-repeats that file automatically.
+When a video finishes, the tile **automatically plays another random file** from
+its playlist and never stops (as long as media is in the folder). A tile with
+**only one video** repeats that file continuously.
 
-Click **🔁** in the tile controls to **loop the current video** instead of
-advancing through the playlist (useful when multiple videos are in the folder).
-The button highlights while loop is on.
+Click **🔁** to **lock playback to the current video** instead of shuffling
+randomly. The button highlights while loop is on.
 
 > **Tip:** When you stop using the mouse and keyboard, the controls fade away
 > automatically so only the video picture remains. See

@@ -256,7 +256,10 @@ function renderLeaf(node) {
   video.preload = 'metadata';
   video.addEventListener('ended', () => {
     if (shouldLoopVideo(node)) return;
-    playNextInPlaylist(node, tile, video);
+    playRandomInPlaylist(node, tile, video, node.currentVideo);
+  });
+  video.addEventListener('error', () => {
+    retryRandomPlayback(node, tile, video, node.currentVideo);
   });
   media.appendChild(video);
 
@@ -389,12 +392,18 @@ async function loadPlaylist(node, tile, plBody, video, empty) {
     });
   }
 
-  // Restore previously selected video, or default to the first one.
-  const restore =
-    node.currentVideo && files.some((f) => f.path === node.currentVideo)
-      ? node.currentVideo
-      : files[0].path;
-  setActive(node, tile, video, restore, state.presenterMode && !state.editMode);
+  // Start continuous playback with a random pick when not editing.
+  node._playFailCount = 0;
+  const pick = pickRandomVideo(files, null);
+  setActive(node, tile, video, pick.path, !state.editMode);
+}
+
+function pickRandomVideo(files, exceptPath) {
+  if (!files || !files.length) return null;
+  if (files.length === 1) return files[0];
+  const pool = exceptPath ? files.filter((f) => f.path !== exceptPath) : files.slice();
+  const choices = pool.length ? pool : files;
+  return choices[Math.floor(Math.random() * choices.length)];
 }
 
 function shouldLoopVideo(node) {
@@ -408,7 +417,7 @@ function setActive(node, tile, video, filePath, autoplay) {
   video.loop = shouldLoopVideo(node);
   video.src = api.toFileURL(filePath);
   if (autoplay) {
-    video.play().catch(() => {});
+    startPlayback(video, node, tile);
   }
   tile.querySelectorAll('.playlist-item').forEach((it) => {
     it.classList.toggle('active', it.dataset.path === filePath);
@@ -416,16 +425,31 @@ function setActive(node, tile, video, filePath, autoplay) {
   scheduleSave();
 }
 
+function startPlayback(video, node, tile) {
+  video.play().catch(() => {
+    retryRandomPlayback(node, tile, video, node.currentVideo);
+  });
+}
+
 function playFile(node, tile, video, filePath) {
+  node._playFailCount = 0;
   setActive(node, tile, video, filePath, true);
 }
 
-function playNextInPlaylist(node, tile, video) {
+function retryRandomPlayback(node, tile, video, exceptPath) {
   const files = node._files || [];
   if (!files.length || shouldLoopVideo(node)) return;
-  const idx = files.findIndex((f) => f.path === node.currentVideo);
-  if (idx < 0 || idx >= files.length - 1) return;
-  playFile(node, tile, video, files[idx + 1].path);
+  node._playFailCount = (node._playFailCount || 0) + 1;
+  if (node._playFailCount > files.length) return;
+  playRandomInPlaylist(node, tile, video, exceptPath);
+}
+
+function playRandomInPlaylist(node, tile, video, exceptPath) {
+  const files = node._files || [];
+  if (!files.length || shouldLoopVideo(node)) return;
+  const next = pickRandomVideo(files, exceptPath);
+  if (!next) return;
+  setActive(node, tile, video, next.path, true);
 }
 
 function toggleLoopVideo(node, tile, video, button) {
@@ -1381,6 +1405,10 @@ window.__lvt = {
     render();
     scheduleSave();
     return this.leaves();
+  },
+  pickRandomVideo(files, exceptPath) {
+    const pick = pickRandomVideo(files, exceptPath);
+    return pick ? pick.path : null;
   }
 };
 
