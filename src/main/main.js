@@ -9,7 +9,7 @@ const {
   arrangeDisplays,
   assignDisplaySlots
 } = require('./displays');
-const { resolveLibraryRoot, pathWithinRoot } = require('./library-paths');
+const { resolveLibraryRoot, pathWithinRoot, DEFAULT_DISPLAY_SLOT } = require('./library-paths');
 const {
   listLayoutFiles,
   readLayoutFile,
@@ -41,13 +41,7 @@ function configPath() {
 }
 
 function defaultLibraryPath() {
-  let base;
-  try {
-    base = app.getPath('documents');
-  } catch (e) {
-    base = app.getPath('userData');
-  }
-  return path.join(base, 'LocalVideoTiler');
+  return path.join(app.getPath('userData'), 'media');
 }
 
 function readConfig() {
@@ -459,7 +453,7 @@ ipcMain.handle('library:choose', async () => {
 
 // Ensure a folder exists for a tile. Renames the existing folder when the
 // tile's name changes so the folder on disk always matches the tile name.
-// When displaySlot is set (1–4), tile folders live under {library}/displays/{slot}/.
+// When displaySlot is omitted, tile folders live under {library}/displays/1/.
 ipcMain.handle('folder:ensure', async (_evt, { name, currentPath, displaySlot }) => {
   const libraryPath = resolveLibraryRoot(getLibraryPath(), displaySlot);
   fs.mkdirSync(libraryPath, { recursive: true });
@@ -835,5 +829,6 @@ module.exports = {
   describeDisplay,
   validateLayoutFile,
   resolveLibraryRoot,
-  pathWithinRoot
+  pathWithinRoot,
+  DEFAULT_DISPLAY_SLOT
 };

@@ -10,6 +10,7 @@ import {
 
 const api = window.api;
 const isPresenter = document.body.classList.contains('presenter-mode');
+const DEFAULT_DISPLAY_SLOT = 1;
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -25,7 +26,7 @@ const state = {
   layoutId: null,
   layoutName: 'Default',
   displayId: null,
-  displaySlot: null,
+  displaySlot: DEFAULT_DISPLAY_SLOT,
   displayLabel: ''
 };
 
@@ -132,10 +133,14 @@ function normalize(node) {
 /* Folder syncing                                                      */
 /* ------------------------------------------------------------------ */
 
+function effectiveDisplaySlot() {
+  return state.displaySlot || DEFAULT_DISPLAY_SLOT;
+}
+
 function displayLibraryRoot() {
-  if (!state.displaySlot || !state.libraryPath) return null;
+  if (!state.libraryPath) return null;
   const base = state.libraryPath.replace(/[/\\]+$/, '');
-  return `${base}/displays/${state.displaySlot}`;
+  return `${base}/displays/${effectiveDisplaySlot()}`;
 }
 
 function folderUnderDisplayRoot(folderPath) {
@@ -151,7 +156,6 @@ function folderUnderDisplayRoot(folderPath) {
 }
 
 function rebindFoldersForDisplay() {
-  if (!state.displaySlot) return;
   forEachLeaf(state.root, (leaf) => {
     if (!folderUnderDisplayRoot(leaf.folderPath)) {
       leaf.folderPath = null;
@@ -160,7 +164,7 @@ function rebindFoldersForDisplay() {
 }
 
 async function ensureLeafFolder(node) {
-  const res = await api.ensureFolder(node.name, node.folderPath, state.displaySlot);
+  const res = await api.ensureFolder(node.name, node.folderPath, effectiveDisplaySlot());
   if (res) {
     node.folderPath = res.path;
     node.name = res.name;
@@ -568,7 +572,7 @@ function startRename(node, tile, badge) {
     input.remove();
     unlockUi();
     if (save && newName && newName !== node.name) {
-      const res = await api.ensureFolder(newName, node.folderPath, state.displaySlot);
+      const res = await api.ensureFolder(newName, node.folderPath, effectiveDisplaySlot());
       if (res) {
         node.name = res.name;
         node.folderPath = res.path;
@@ -643,7 +647,7 @@ if (!isPresenter) {
     if (chosen) {
       state.libraryPath = chosen;
       state.displayId = null;
-      state.displaySlot = null;
+      state.displaySlot = DEFAULT_DISPLAY_SLOT;
       state.displayLabel = '';
       updateLibraryLabel();
       // Re-bind every tile to a folder under the new library root.
@@ -923,7 +927,7 @@ async function editDisplayLayout(displayId, displayLabel) {
   }
   await refreshDisplaySlotMap();
   state.displayId = String(displayId);
-  state.displaySlot = displaySlotMap.get(String(displayId)) || null;
+  state.displaySlot = displaySlotMap.get(String(displayId)) || DEFAULT_DISPLAY_SLOT;
   state.displayLabel = displayLabel || '';
   await applyLayoutProfile(res);
   displaysDialog.close();
@@ -1158,7 +1162,7 @@ async function applyLayoutProfile(profile) {
 async function switchToLayout(id) {
   await flushSave();
   state.displayId = null;
-  state.displaySlot = null;
+  state.displaySlot = DEFAULT_DISPLAY_SLOT;
   state.displayLabel = '';
   const res = await api.loadLayoutProfile(id);
   if (!res.ok) {
@@ -1180,7 +1184,7 @@ async function createNewLayout() {
   const name = layoutsNewName.value.trim() || `Layout ${Date.now()}`;
   await flushSave();
   state.displayId = null;
-  state.displaySlot = null;
+  state.displaySlot = DEFAULT_DISPLAY_SLOT;
   state.displayLabel = '';
   const created = await api.createLayout(name);
   const res = await api.loadLayoutProfile(created.id);
@@ -1215,7 +1219,7 @@ async function exportCurrentLayout() {
 async function importLayoutFile() {
   await flushSave();
   state.displayId = null;
-  state.displaySlot = null;
+  state.displaySlot = DEFAULT_DISPLAY_SLOT;
   state.displayLabel = '';
   const res = await api.importLayout();
   if (res.canceled) return;
@@ -1280,7 +1284,7 @@ async function applySyncPayload(payload) {
   if (state.presenterMode && state.editMode) return;
   state.libraryPath = payload.libraryPath;
   state.displayId = payload.displayId ? String(payload.displayId) : null;
-  state.displaySlot = payload.displaySlot || null;
+  state.displaySlot = payload.displaySlot || DEFAULT_DISPLAY_SLOT;
   state.layoutId = payload.layoutId || state.layoutId;
   state.layoutName = payload.layoutName || state.layoutName;
   state.displayLabel = payload.displayLabel || state.displayLabel;
@@ -1357,7 +1361,7 @@ window.__lvt = {
   },
   async rename(id, name) {
     const node = findNode(state.root, id);
-    const res = await api.ensureFolder(name, node.folderPath, state.displaySlot);
+    const res = await api.ensureFolder(name, node.folderPath, effectiveDisplaySlot());
     if (res) {
       node.name = res.name;
       node.folderPath = res.path;

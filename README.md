@@ -81,8 +81,10 @@ That's it — the app window opens with a single tile.
 ### 1. Choose where your library lives (optional)
 
 Click **📁 Library…** in the top bar to pick the root folder where tile folders
-are created. By default it lives in `LocalVideoTiler` inside your Documents
-folder. Changing it re-binds every tile to a fresh folder under the new root.
+are created. By default it lives in a `media` folder inside the app's data
+directory (e.g. `…/local-video-tiler/media/`). Tile folders are always placed
+under `displays/1/` through `displays/4/` inside that folder. Changing the
+library re-binds every tile to a fresh folder under the new root.
 
 ### 2. Build your layout (Edit mode)
 
@@ -135,8 +137,8 @@ video wall across your entire screen. Press `F11` again to exit.
 
 Click **🖥 Displays**, select monitors, assign a **layout** to each, and click
 **Present**. Each display runs its own tile grid fullscreen with tile folders
-under `{library}/displays/1/` through `{library}/displays/4/` (one folder per
-monitor slot), so the same tile names on different monitors do not collide. Move the mouse on any display to reveal **✎ Edit Layout**
+under `{media}/displays/1/` through `{media}/displays/4/`. Even with one
+monitor, tiles use `displays/1/` so adding screens later won't duplicate files. Move the mouse on any display to reveal **✎ Edit Layout**
 (`Ctrl/Cmd+E`) and edit that screen’s tiles directly. Press **`Escape`** or click
 **Stop** on any presenter to end presentation, or **`Ctrl+Q`** / **Quit** to exit
 the app.

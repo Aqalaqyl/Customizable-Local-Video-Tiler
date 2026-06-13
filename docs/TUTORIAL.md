@@ -131,9 +131,10 @@ When the app opens for the first time, you will see:
 
 What happens automatically on first launch:
 
-1. A **library root folder** is created (by default `Documents/LocalVideoTiler` on
-   most systems).
-2. A subfolder for your first tile is created inside that library.
+1. A **media library folder** is created inside the app data directory (by default
+   `…/local-video-tiler/media/` on most systems).
+2. Tile folders are created under `media/displays/1/` for your first screen (even
+   when only one monitor is connected).
 3. An empty layout with **one tile** is shown.
 
 You are ready to add media or customize the layout.
@@ -142,11 +143,10 @@ You are ready to add media or customize the layout.
 
 ## 5. Choose your library folder
 
-The **library** is the root directory where tile folders live. Each tile gets its
-own subfolder inside the library. When you present on multiple displays, each
-monitor also gets its own numbered folder under `{library}/displays/1/` through
-`{library}/displays/4/` (assigned in grid order), so two screens can use the
-same tile names without sharing folders.
+The **library** is the `media` folder where tile folders live. Each tile gets its
+own subfolder inside `media/displays/1/` through `media/displays/4/` (one folder
+per monitor slot). When only one display is connected, tiles still use
+`displays/1/` so adding monitors later does not duplicate files.
 
 ### Step 5.1 — Open the library picker
 
@@ -635,15 +635,16 @@ Local Video Tiler keeps two kinds of data on your machine:
 
 ### Library folders (your media)
 
-Default location:
+Default location (`media` folder inside the app data directory):
 
 | OS | Typical path |
 | -- | ------------ |
-| Windows | `C:\Users\<You>\Documents\LocalVideoTiler\` |
-| macOS | `/Users/<You>/Documents/LocalVideoTiler/` |
-| Linux | `/home/<you>/Documents/LocalVideoTiler/` |
+| Windows | `%APPDATA%\local-video-tiler\media\` |
+| macOS | `~/Library/Application Support/local-video-tiler/media/` |
+| Linux | `~/.config/local-video-tiler/media/` |
 
-Each tile is a subfolder inside this directory, named after the tile.
+Each tile is a subfolder under `media/displays/1/` through `media/displays/4/`,
+named after the tile. With one monitor, everything uses `displays/1/`.
 
 ### App configuration (settings + active layout id)
 
@@ -742,7 +743,7 @@ If you run the automated test suite, it creates real folders and config files. C
 up before manual use:
 
 ```bash
-rm -rf ~/LocalVideoTiler ~/.config/local-video-tiler ~/.config/Electron
+rm -rf ~/.config/local-video-tiler ~/.config/Electron
 ```
 
 (Adjust paths for your OS.)

@@ -20,6 +20,28 @@ async function evalInPage(win, fn, ...args) {
   return win.webContents.executeJavaScript(code, true);
 }
 
+async function waitForTileFolder(win) {
+  for (let i = 0; i < 100; i++) {
+    const leaves = await evalInPage(win, () => window.__lvt.leaves());
+    if (leaves[0] && leaves[0].folderPath) return leaves[0].folderPath;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error('tile folder not ready');
+}
+
+async function waitForPlaylistItems(win, count, tileId) {
+  for (let i = 0; i < 50; i++) {
+    const n = await evalInPage(
+      win,
+      (id) =>
+        document.querySelectorAll(`.tile[data-id="${id}"] .playlist-item`).length,
+      tileId
+    );
+    if (n >= count) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 app.whenReady().then(async () => {
   try {
     let win = BrowserWindow.getAllWindows()[0];
@@ -39,8 +61,8 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    const leaves = await evalInPage(win, () => window.__lvt.leaves());
-    const folder = leaves[0].folderPath;
+    const folder = await waitForTileFolder(win);
+    const tileId = await evalInPage(win, () => window.__lvt.leaves()[0].id);
 
     // Drop two fake media files into the tile folder.
     fs.writeFileSync(path.join(folder, 'b-second.mp4'), 'x');
@@ -49,12 +71,17 @@ app.whenReady().then(async () => {
 
     // Re-render so the playlist reloads, then wait for the async list.
     await evalInPage(win, () => window.__lvt.rerender());
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForPlaylistItems(win, 2, tileId);
 
-    const items = await evalInPage(win, () =>
-      Array.from(document.querySelectorAll('.playlist-item .pi-name')).map(
-        (n) => n.textContent
-      )
+    const items = await evalInPage(
+      win,
+      (id) =>
+        Array.from(
+          document.querySelector(`.tile[data-id="${id}"]`).querySelectorAll(
+            '.playlist-item .pi-name'
+          )
+        ).map((n) => n.textContent),
+      tileId
     );
     check('playlist lists both media files', items.length === 2);
     check('non-media files are excluded', !items.includes('notes.txt'));
@@ -65,7 +92,11 @@ app.whenReady().then(async () => {
 
     const videoSrc = await evalInPage(
       win,
-      () => document.querySelector('.tile-video').getAttribute('src')
+      (id) =>
+        document
+          .querySelector(`.tile[data-id="${id}"] .tile-video`)
+          .getAttribute('src'),
+      tileId
     );
     check('video element has a file:// source', /^file:\/\//.test(videoSrc || ''));
     check(
@@ -73,37 +104,62 @@ app.whenReady().then(async () => {
       decodeURIComponent(videoSrc || '').endsWith('a-first.webm')
     );
 
-    await evalInPage(win, () => {
-      document.querySelector('.tile-video').dispatchEvent(new Event('ended'));
-    });
+    await evalInPage(
+      win,
+      (id) => {
+        document
+          .querySelector(`.tile[data-id="${id}"] .tile-video`)
+          .dispatchEvent(new Event('ended'));
+      },
+      tileId
+    );
     await new Promise((r) => setTimeout(r, 150));
 
     const activeAfterEnd = await evalInPage(
       win,
-      () => document.querySelector('.playlist-item.active .pi-name')?.textContent || ''
+      (id) =>
+        document.querySelector(
+          `.tile[data-id="${id}"] .playlist-item.active .pi-name`
+        )?.textContent || '',
+      tileId
     );
     check('playlist autoplays the next video when one ends', activeAfterEnd === 'b-second.mp4');
 
-    await evalInPage(win, () => {
-      const btn = [...document.querySelectorAll('.tile-controls button')].find(
-        (b) => b.title === 'Loop current video'
-      );
-      btn.click();
-    });
+    await evalInPage(
+      win,
+      (id) => {
+        const btn = [
+          ...document.querySelectorAll(`.tile[data-id="${id}"] .tile-controls button`)
+        ].find((b) => b.title === 'Loop current video');
+        btn.click();
+      },
+      tileId
+    );
     const loopEnabled = await evalInPage(
       win,
-      () => document.querySelector('.tile-video').loop
+      (id) => document.querySelector(`.tile[data-id="${id}"] .tile-video`).loop,
+      tileId
     );
     check('loop toggle enables video.loop', loopEnabled === true);
 
-    await evalInPage(win, () => {
-      document.querySelector('.tile-video').dispatchEvent(new Event('ended'));
-    });
+    await evalInPage(
+      win,
+      (id) => {
+        document
+          .querySelector(`.tile[data-id="${id}"] .tile-video`)
+          .dispatchEvent(new Event('ended'));
+      },
+      tileId
+    );
     await new Promise((r) => setTimeout(r, 150));
 
     const activeWithLoop = await evalInPage(
       win,
-      () => document.querySelector('.playlist-item.active .pi-name')?.textContent || ''
+      (id) =>
+        document.querySelector(
+          `.tile[data-id="${id}"] .playlist-item.active .pi-name`
+        )?.textContent || '',
+      tileId
     );
     check('loop mode does not advance to the next playlist item', activeWithLoop === 'b-second.mp4');
 
@@ -111,11 +167,12 @@ app.whenReady().then(async () => {
     fs.unlinkSync(path.join(folder, 'a-first.webm'));
     fs.writeFileSync(path.join(folder, 'only.mp4'), 'x');
     await evalInPage(win, () => window.__lvt.rerender());
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForPlaylistItems(win, 1, tileId);
 
     const singleVideoLoop = await evalInPage(
       win,
-      () => document.querySelector('.tile-video').loop
+      (id) => document.querySelector(`.tile[data-id="${id}"] .tile-video`).loop,
+      tileId
     );
     check('single-video playlist loops automatically', singleVideoLoop === true);
   } catch (err) {

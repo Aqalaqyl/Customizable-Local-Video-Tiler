@@ -60,6 +60,10 @@ app.whenReady().then(async () => {
     check('starts with exactly one tile', leaves.length === 1);
     const rootId = leaves[0].id;
     check('initial tile has a folder on disk', fs.existsSync(leaves[0].folderPath));
+    check(
+      'single-display tile folders live under displays/1',
+      leaves[0].folderPath.includes(`${path.sep}displays${path.sep}1${path.sep}`)
+    );
 
     // 2. Vertical split -> two tiles, two folders.
     leaves = await evalInPage(
