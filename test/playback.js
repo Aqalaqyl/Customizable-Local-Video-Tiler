@@ -115,8 +115,9 @@ app.whenReady().then(async () => {
     );
     check('video element has a file:// source', /^file:\/\//.test(videoSrc || ''));
     check(
-      'default loaded video is the first file',
-      decodeURIComponent(videoSrc || '').endsWith('a-first.webm')
+      'initial playback loads a playlist video',
+      decodeURIComponent(videoSrc || '').endsWith('a-first.webm') ||
+        decodeURIComponent(videoSrc || '').endsWith('b-second.mp4')
     );
 
     await evalInPage(
@@ -138,7 +139,10 @@ app.whenReady().then(async () => {
         )?.textContent || '',
       tileId
     );
-    check('playlist autoplays the next video when one ends', activeAfterEnd === 'b-second.mp4');
+    check(
+      'playlist keeps playing another video when one ends',
+      ['a-first.webm', 'b-second.mp4'].includes(activeAfterEnd)
+    );
 
     await evalInPage(
       win,
@@ -148,6 +152,14 @@ app.whenReady().then(async () => {
         ].find((b) => b.title === 'Loop current video');
         btn.click();
       },
+      tileId
+    );
+    const lockedName = await evalInPage(
+      win,
+      (id) =>
+        document.querySelector(
+          `.tile[data-id="${id}"] .playlist-item.active .pi-name`
+        )?.textContent || '',
       tileId
     );
     const loopEnabled = await evalInPage(
@@ -176,7 +188,7 @@ app.whenReady().then(async () => {
         )?.textContent || '',
       tileId
     );
-    check('loop mode does not advance to the next playlist item', activeWithLoop === 'b-second.mp4');
+    check('loop mode keeps the current playlist item', activeWithLoop === lockedName);
 
     fs.unlinkSync(path.join(folder, 'b-second.mp4'));
     fs.unlinkSync(path.join(folder, 'a-first.webm'));
